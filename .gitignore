@@ -1,0 +1,5 @@
+# Cmake default build directory
+build/
+
+# Clangd cache directory
+.cache/
