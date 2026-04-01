@@ -1,15 +1,84 @@
 #include "braille-snake.h"
+#include <errno.h>
+#include <poll.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/poll.h>
+#include <termios.h>
+#include <unistd.h>
 
-#define GAME_WIDTH 16
+#define ESC_CHAR '\033'
+#define ESC_SEP_CHAR '['
+#define ESC "\033"
+#define ESC_SEP "["
+#define CSI ESC ESC_SEP
+#define CURSOR_CMD "H"
+#define CURSOR_HOME CSI CURSOR_CMD
+#define CURSOR_TO_F CSI "%d;%d" CURSOR_CMD
+#define CLEAR_SCREEN CSI "2J"
+#define CLEAR_ALL CLEAR_SCREEN CURSOR_HOME
+#define HIDE_CURSOR CSI "?25l"
+#define SHOW_CURSOR CSI "?25h"
+#define ALTERNATIVE_BUFFER_ON CSI "?1049h"
+#define ALTERNATIVE_BUFFER_OFF CSI "?1049l"
+
+#define GAME_WIDTH 64
 #define GAME_HEIGHT 4 // NOTE: for now only one line so must be 4
 
 bool game_array[GAME_HEIGHT][GAME_WIDTH] = {0};
 unsigned int player_pos_x = 0, player_pos_y = 2;
-unsigned int player_speed = 1;
+int player_speed_x = 1;
+int player_speed_y = 0;
 unsigned int player_length = 1;
+char input_display = ' ';
+
+static volatile sig_atomic_t g_running = 1;
+
+static struct termios g_old_termios;
+
+static void restore_terminal(void) {
+  tcsetattr(STDIN_FILENO, TCSAFLUSH, &g_old_termios);
+}
+
+static int enable_raw_mode(void) {
+  struct termios raw;
+
+  if (tcgetattr(STDIN_FILENO, &g_old_termios) == -1)
+    return -1;
+
+  raw = g_old_termios;
+  raw.c_lflag &= ~(ICANON | ECHO);
+  raw.c_cc[VMIN] = 0;
+  raw.c_cc[VTIME] = 0;
+
+  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1)
+    return -1;
+
+  return 0;
+}
+
+void handle_user_input(char c) {
+  if (c == 'k' && player_speed_y != 1) {
+    player_speed_x = 0;
+    player_speed_y = -1;
+  }
+  if (c == 'j' && player_speed_y != -1) {
+    player_speed_x = 0;
+    player_speed_y = 1;
+  }
+  if (c == 'l' && player_speed_x != -1) {
+    player_speed_x = 1;
+    player_speed_y = 0;
+  }
+  if (c == 'h' && player_speed_x != 1) {
+    player_speed_x = -1;
+    player_speed_y = 0;
+  }
+
+  input_display = c;
+}
 
 void init_frame() {
   for (int x = 0; x < GAME_WIDTH; x++) {
@@ -20,7 +89,11 @@ void init_frame() {
   game_array[player_pos_y][player_pos_x] = 1;
 }
 
-void update_frame() { game_array[player_pos_y][player_pos_x] = 1; }
+void update_frame() {
+  player_pos_x = (player_pos_x + player_speed_x) % GAME_WIDTH;
+  player_pos_y = (player_pos_y + player_speed_y) % GAME_HEIGHT;
+  game_array[player_pos_y][player_pos_x] = 1;
+}
 
 void print_frame() {
   for (int i = 0; i < GAME_WIDTH; i += 2) {
@@ -39,28 +112,74 @@ void print_frame() {
     if (rc != 0)
       printf("!");
   }
-  printf("\n");
+}
+
+static void handle_sigint(int signo) {
+  (void)signo;
+  g_running = 0;
+}
+
+static int install_signal_handlers(void) {
+  struct sigaction sa;
+  sa.sa_handler = handle_sigint;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = 0;
+
+  if (sigaction(SIGINT, &sa, NULL) == -1)
+    return -1;
+
+  return 0;
 }
 
 int main(int argc, char *argv[]) {
   printf("Welcome to BRAILLE SNAKE, press any key to start...\n");
 
+  if (enable_raw_mode() == -1) {
+    perror("enable_raw_mode");
+    return 1;
+  }
+  atexit(restore_terminal);
+
+  if (install_signal_handlers() == -1) {
+    perror("sigaction");
+    return 1;
+  }
+
+  printf("%s", HIDE_CURSOR);
   init_frame();
-
   print_frame();
 
-  player_pos_x++;
-  update_frame();
-  print_frame();
-  player_pos_x++;
-  update_frame();
-  print_frame();
-  player_pos_y++;
-  update_frame();
-  print_frame();
-  player_pos_x++;
-  update_frame();
-  print_frame();
+  struct pollfd poll_fd[1];
+  poll_fd[0].fd = STDIN_FILENO;
+  poll_fd[0].events = POLLIN;
+  poll_fd[0].revents = 0;
 
+  while (g_running) {
+    int ret_poll = poll(poll_fd, 1, 20); // ms
+    if (ret_poll == -1) {
+      if (errno == EINTR)
+        continue; // interrupted by SIGWINCH handler
+      perror("poll");
+      break;
+    }
+    if (ret_poll > 0) {
+      if (poll_fd[0].revents & POLLIN) {
+        char c;
+        if (read(STDIN_FILENO, &c, 1) > 0) {
+          handle_user_input(c);
+          printf("%s", CLEAR_ALL);
+          printf("[%c]", c);
+          update_frame();
+          print_frame();
+          printf("[score:%d]", 0);
+          fflush(stdout);
+        }
+      }
+    }
+  }
+
+  printf("%s", SHOW_CURSOR);
+  printf("%s", CLEAR_ALL);
+  fflush(stdout);
   return EXIT_SUCCESS;
 }
