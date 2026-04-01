@@ -25,7 +25,7 @@
 #define ALTERNATIVE_BUFFER_OFF CSI "?1049l"
 
 #define GAME_WIDTH 64
-#define GAME_HEIGHT 4 // NOTE: for now only one line so must be 4
+#define GAME_HEIGHT 64 // for only one line must be 4
 
 bool game_array[GAME_HEIGHT][GAME_WIDTH] = {0};
 unsigned int player_pos_x = 0, player_pos_y = 2;
@@ -60,19 +60,19 @@ static int enable_raw_mode(void) {
 }
 
 void handle_user_input(char c) {
-  if (c == 'k' && player_speed_y != 1) {
+  if (c == 'k') {
     player_speed_x = 0;
     player_speed_y = -1;
   }
-  if (c == 'j' && player_speed_y != -1) {
+  if (c == 'j') {
     player_speed_x = 0;
     player_speed_y = 1;
   }
-  if (c == 'l' && player_speed_x != -1) {
+  if (c == 'l') {
     player_speed_x = 1;
     player_speed_y = 0;
   }
-  if (c == 'h' && player_speed_x != 1) {
+  if (c == 'h') {
     player_speed_x = -1;
     player_speed_y = 0;
   }
@@ -96,21 +96,27 @@ void update_frame() {
 }
 
 void print_frame() {
-  for (int i = 0; i < GAME_WIDTH; i += 2) {
-    bool in_grid[4][2] = {0};
-    in_grid[0][0] = game_array[0][i];
-    in_grid[0][1] = game_array[0][i + 1];
-    in_grid[1][0] = game_array[1][i];
-    in_grid[1][1] = game_array[1][i + 1];
-    in_grid[2][0] = game_array[2][i];
-    in_grid[2][1] = game_array[2][i + 1];
-    in_grid[3][0] = game_array[3][i];
-    in_grid[3][1] = game_array[3][i + 1];
-    unsigned char utf8_braille[4];
-    int rc = encode_grid_to_braille(in_grid, utf8_braille);
-    printf("%s", utf8_braille);
-    if (rc != 0)
-      printf("!");
+  if (GAME_HEIGHT != 4)
+    printf("\n");
+  for (int j = 0; j < GAME_HEIGHT; j += 4) {
+    for (int i = 0; i < GAME_WIDTH; i += 2) {
+      bool in_grid[4][2] = {0};
+      in_grid[0][0] = game_array[j][i];
+      in_grid[0][1] = game_array[j][i + 1];
+      in_grid[1][0] = game_array[j + 1][i];
+      in_grid[1][1] = game_array[j + 1][i + 1];
+      in_grid[2][0] = game_array[j + 2][i];
+      in_grid[2][1] = game_array[j + 2][i + 1];
+      in_grid[3][0] = game_array[j + 3][i];
+      in_grid[3][1] = game_array[j + 3][i + 1];
+      unsigned char utf8_braille[4];
+      int rc = encode_grid_to_braille(in_grid, utf8_braille);
+      printf("%s", utf8_braille);
+      if (rc != 0)
+        printf("!");
+    }
+    if (GAME_HEIGHT != 4)
+      printf("\n");
   }
 }
 

@@ -18,10 +18,12 @@ cmake --build build
 
 ## TODO List
 TODO: 
-[ ] Create Grid visible in braille
-[ ] Add score display
-[ ] Add player control
+[x] Create Grid visible in braille
+[x] Add score display
+[x] Add player control
+[ ] Add physics
 [ ] Add gameplay
+[ ] Add double buffer (mostly for mutiline games)
 [ ]
 
 Copyright (c) 2026 Pierre Mollard. All Rights Reserved.
