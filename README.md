@@ -21,9 +21,9 @@ TODO:
 [x] Create Grid visible in braille
 [x] Add score display
 [x] Add player control
+[x] Add player cell management
 [ ] Add physics
 [ ] Add gameplay
 [ ] Add double buffer (mostly for mutiline games)
-[ ]
 
 Copyright (c) 2026 Pierre Mollard. All Rights Reserved.

@@ -31,8 +31,18 @@ bool game_array[GAME_HEIGHT][GAME_WIDTH] = {0};
 unsigned int player_pos_x = 0, player_pos_y = 2;
 int player_speed_x = 1;
 int player_speed_y = 0;
-unsigned int player_length = 1;
+unsigned int player_length = 3;
 char input_display = ' ';
+
+struct player_cell {
+  unsigned int pos_x;
+  unsigned int pos_y;
+  unsigned int speed_x;
+  unsigned int speed_y;
+  bool not_empty;
+};
+
+struct player_cell player_cells[GAME_HEIGHT * GAME_WIDTH] = {0};
 
 static volatile sig_atomic_t g_running = 1;
 
@@ -87,12 +97,46 @@ void init_frame() {
     }
   }
   game_array[player_pos_y][player_pos_x] = 1;
+
+  player_cells[0].pos_x = 0;
+  player_cells[0].pos_y = 2;
+  player_cells[0].speed_x = player_speed_x;
+  player_cells[0].speed_y = player_speed_y;
+  player_cells[0].not_empty = true;
+  player_cells[1].pos_x = 1;
+  player_cells[1].pos_y = 2;
+  player_cells[1].speed_x = player_speed_x;
+  player_cells[1].speed_y = player_speed_y;
+  player_cells[1].not_empty = true;
+  player_cells[2].pos_x = 2;
+  player_cells[2].pos_y = 2;
+  player_cells[2].speed_x = player_speed_x;
+  player_cells[2].speed_y = player_speed_y;
+  player_cells[2].not_empty = true;
 }
 
 void update_frame() {
   player_pos_x = (player_pos_x + player_speed_x) % GAME_WIDTH;
   player_pos_y = (player_pos_y + player_speed_y) % GAME_HEIGHT;
-  game_array[player_pos_y][player_pos_x] = 1;
+
+  for (int i = 0; i < player_length; i++) {
+    game_array[player_cells[i].pos_y][player_cells[i].pos_x] = 0;
+  }
+
+  for (int i = 0; i < player_length; i++) {
+    player_cells[i].pos_x =
+        (player_cells[i].pos_x + player_cells[i].speed_x) % GAME_WIDTH;
+    player_cells[i].pos_y =
+        (player_cells[i].pos_y + player_cells[i].speed_y) % GAME_HEIGHT;
+    if (i + 1 < player_length && (player_cells[i + 1].not_empty == true)) {
+      player_cells[i].speed_x = player_cells[i + 1].speed_x;
+      player_cells[i].speed_y = player_cells[i + 1].speed_y;
+    } else {
+      player_cells[i].speed_x = player_speed_x;
+      player_cells[i].speed_y = player_speed_y;
+    }
+    game_array[player_cells[i].pos_y][player_cells[i].pos_x] = 1;
+  }
 }
 
 void print_frame() {
