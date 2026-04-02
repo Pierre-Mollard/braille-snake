@@ -31,7 +31,7 @@ bool game_array[GAME_HEIGHT][GAME_WIDTH] = {0};
 unsigned int player_pos_x = 0, player_pos_y = 2;
 int player_speed_x = 1;
 int player_speed_y = 0;
-unsigned int player_length = 3;
+unsigned int player_length = 10;
 char input_display = ' ';
 
 struct player_cell {
@@ -96,23 +96,13 @@ void init_frame() {
       game_array[y][x] = 0;
     }
   }
-  game_array[player_pos_y][player_pos_x] = 1;
-
-  player_cells[0].pos_x = 0;
-  player_cells[0].pos_y = 2;
-  player_cells[0].speed_x = player_speed_x;
-  player_cells[0].speed_y = player_speed_y;
-  player_cells[0].not_empty = true;
-  player_cells[1].pos_x = 1;
-  player_cells[1].pos_y = 2;
-  player_cells[1].speed_x = player_speed_x;
-  player_cells[1].speed_y = player_speed_y;
-  player_cells[1].not_empty = true;
-  player_cells[2].pos_x = 2;
-  player_cells[2].pos_y = 2;
-  player_cells[2].speed_x = player_speed_x;
-  player_cells[2].speed_y = player_speed_y;
-  player_cells[2].not_empty = true;
+  for (int i = 0; i < player_length; i++) {
+    player_cells[i].pos_x = player_pos_x + i;
+    player_cells[i].pos_y = player_pos_y;
+    player_cells[i].speed_x = player_speed_x;
+    player_cells[i].speed_y = player_speed_y;
+    player_cells[i].not_empty = true;
+  }
 }
 
 void update_frame() {
