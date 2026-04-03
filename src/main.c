@@ -33,6 +33,7 @@ bool game_array[GAME_HEIGHT][GAME_WIDTH] = {0};
 unsigned int player_pos_x = 0, player_pos_y = 2;
 int player_speed_x = 1;
 int player_speed_y = 0;
+int player_score = 0;
 unsigned int player_length = 10;
 unsigned int bonus_available_number = 0;
 char input_display = ' ';
@@ -49,6 +50,7 @@ struct bonus_cell {
   unsigned int pos_x;
   unsigned int pos_y;
   unsigned int points;
+  bool used;
 };
 
 struct player_cell player_cells[GAME_HEIGHT * GAME_WIDTH] = {0};
@@ -97,10 +99,19 @@ void spawn_goal() {
 
     if (game_array[rand_y][rand_x] == 0) {
       // found place for spawn_goal
+      int index_free = 0;
+      while (bonus_cells[index_free].used) {
+        index_free++;
+        if (index_free > MAX_CONCURRENT_BONUS) {
+          // if this happens big problem
+          perror("index free moved past max possible");
+        }
+      }
       found_place = true;
-      bonus_cells[bonus_available_number].pos_x = rand_x;
-      bonus_cells[bonus_available_number].pos_y = rand_y;
-      bonus_cells[bonus_available_number].points = rand() % 3 + 1;
+      bonus_cells[index_free].pos_x = rand_x;
+      bonus_cells[index_free].pos_y = rand_y;
+      bonus_cells[index_free].points = 1;
+      bonus_cells[index_free].used = false;
       bonus_available_number++;
     }
   }
@@ -169,10 +180,24 @@ void update_frame() {
     game_array[player_cells[i].pos_y][player_cells[i].pos_x] = 1;
   }
 
-  // TODO: update catching goal logic here
+  int score_gained = 0;
+  for (int i = 0; i < bonus_available_number; i++) {
+    if (bonus_cells[i].used)
+      continue;
+
+    if (bonus_cells[i].pos_x == player_pos_x &&
+        bonus_cells[i].pos_y == player_pos_y) {
+      bonus_cells[i].used = true;
+      player_score += bonus_cells[i].points;
+      score_gained++;
+      player_length++;
+    }
+  }
+  bonus_available_number -= score_gained;
 
   for (int i = 0; i < bonus_available_number; i++) {
-    game_array[bonus_cells[i].pos_y][bonus_cells[i].pos_x] = 1;
+    if (!bonus_cells[i].used)
+      game_array[bonus_cells[i].pos_y][bonus_cells[i].pos_x] = 1;
   }
 }
 
@@ -310,7 +335,18 @@ int main(int argc, char *argv[]) {
       printf("%s", CLEAR_ALL);
       printf("%s", input_display_content);
       print_frame();
-      printf("[score:%d]", 0);
+      printf("[score:%d]", player_score);
+      printf("\n[x:%d,y:%d]", player_pos_x, player_pos_y);
+
+      int bonus_count = 0;
+      for (int i = 0; i < bonus_available_number; i++) {
+        if (bonus_cells[i].used)
+          continue;
+        bonus_count++;
+        printf("\n[bonus#%d,x:%d,y:%d]", bonus_count, bonus_cells[i].pos_x,
+               bonus_cells[i].pos_y);
+      }
+
       fflush(stdout);
       next_tick += time_frame;
     }
