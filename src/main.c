@@ -27,12 +27,14 @@
 
 #define GAME_WIDTH 64
 #define GAME_HEIGHT 64 // for only one line must be 4
+#define MAX_CONCURRENT_BONUS 3
 
 bool game_array[GAME_HEIGHT][GAME_WIDTH] = {0};
 unsigned int player_pos_x = 0, player_pos_y = 2;
 int player_speed_x = 1;
 int player_speed_y = 0;
 unsigned int player_length = 10;
+unsigned int bonus_available_number = 0;
 char input_display = ' ';
 
 struct player_cell {
@@ -43,7 +45,14 @@ struct player_cell {
   bool not_empty;
 };
 
+struct bonus_cell {
+  unsigned int pos_x;
+  unsigned int pos_y;
+  unsigned int points;
+};
+
 struct player_cell player_cells[GAME_HEIGHT * GAME_WIDTH] = {0};
+struct bonus_cell bonus_cells[MAX_CONCURRENT_BONUS] = {0};
 
 static volatile sig_atomic_t g_running = 1;
 
@@ -68,6 +77,33 @@ static int enable_raw_mode(void) {
     return -1;
 
   return 0;
+}
+
+void spawn_goal() {
+
+  // TODO: make win here (player is occupying all cells)
+  if (player_length >= GAME_HEIGHT * GAME_WIDTH)
+    return;
+
+  // NOTE: max same time reached
+  if (bonus_available_number >= MAX_CONCURRENT_BONUS)
+    return;
+
+  // must be place (checked before)
+  bool found_place = false;
+  while (!found_place) {
+    unsigned int rand_y = rand() % GAME_HEIGHT;
+    unsigned int rand_x = rand() % GAME_WIDTH;
+
+    if (game_array[rand_y][rand_x] == 0) {
+      // found place for spawn_goal
+      found_place = true;
+      bonus_cells[bonus_available_number].pos_x = rand_x;
+      bonus_cells[bonus_available_number].pos_y = rand_y;
+      bonus_cells[bonus_available_number].points = rand() % 3 + 1;
+      bonus_available_number++;
+    }
+  }
 }
 
 void handle_user_input(char c) {
@@ -114,6 +150,10 @@ void update_frame() {
     game_array[player_cells[i].pos_y][player_cells[i].pos_x] = 0;
   }
 
+  for (int i = 0; i < bonus_available_number; i++) {
+    game_array[bonus_cells[i].pos_y][bonus_cells[i].pos_x] = 0;
+  }
+
   for (int i = 0; i < player_length; i++) {
     player_cells[i].pos_x =
         (player_cells[i].pos_x + player_cells[i].speed_x) % GAME_WIDTH;
@@ -127,6 +167,12 @@ void update_frame() {
       player_cells[i].speed_y = player_speed_y;
     }
     game_array[player_cells[i].pos_y][player_cells[i].pos_x] = 1;
+  }
+
+  // TODO: update catching goal logic here
+
+  for (int i = 0; i < bonus_available_number; i++) {
+    game_array[bonus_cells[i].pos_y][bonus_cells[i].pos_x] = 1;
   }
 }
 
@@ -191,6 +237,8 @@ int main(int argc, char *argv[]) {
     perror("sigaction");
     return 1;
   }
+
+  srand(time(NULL));
 
   printf("%s", HIDE_CURSOR);
   init_frame();
@@ -258,6 +306,7 @@ int main(int argc, char *argv[]) {
 
     if (ret_poll == 0 || now_ms() >= next_tick) {
       update_frame();
+      spawn_goal();
       printf("%s", CLEAR_ALL);
       printf("%s", input_display_content);
       print_frame();

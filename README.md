@@ -22,8 +22,10 @@ TODO:
 [x] Add score display
 [x] Add player control
 [x] Add player cell management
-[ ] Add physics
-[ ] Add gameplay
+[x] Add goal spawn
+[ ] Add collision detection (good and bad)
+[ ] Add win condition and defeat
+[ ] Add time display
 [ ] Add double buffer (mostly for muti-line games)
 
 Copyright (c) 2026 Pierre Mollard. All Rights Reserved.
