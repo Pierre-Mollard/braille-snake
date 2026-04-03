@@ -203,6 +203,7 @@ int main(int argc, char *argv[]) {
 
   long long time_frame = 100;
   long long next_tick = now_ms() + time_frame;
+  char input_display_content[20];
 
   while (g_running) {
     long long ms_left = next_tick - now_ms();
@@ -219,15 +220,46 @@ int main(int argc, char *argv[]) {
     }
 
     if (ret_poll > 0 && (poll_fd[0].revents & POLLIN)) {
+
       char c;
       if (read(STDIN_FILENO, &c, 1) > 0) {
-        handle_user_input(c);
+        if (c == '\x1b') {
+          char seq[2];
+          if (read(STDIN_FILENO, &seq[0], 1) > 0 &&
+              read(STDIN_FILENO, &seq[1], 1) > 0) {
+            if (seq[0] == '[') {
+              switch (seq[1]) {
+              case 'A': /* up */
+                sprintf(input_display_content, "[input:  UP ]");
+                handle_user_input('k');
+                break;
+              case 'B': /* down */
+                sprintf(input_display_content, "[input: DOWN]");
+                handle_user_input('j');
+                break;
+              case 'C': /* right */
+                sprintf(input_display_content, "[input:RIGHT]");
+                handle_user_input('l');
+                break;
+              case 'D': /* left */
+                sprintf(input_display_content, "[input: LEFT]");
+                handle_user_input('h');
+                break;
+              }
+            }
+          }
+        } else {
+          /* normal character */
+          sprintf(input_display_content, "[input:  %c  ]", c);
+          handle_user_input(c);
+        }
       }
     }
 
     if (ret_poll == 0 || now_ms() >= next_tick) {
       update_frame();
       printf("%s", CLEAR_ALL);
+      printf("%s", input_display_content);
       print_frame();
       printf("[score:%d]", 0);
       fflush(stdout);
