@@ -24,6 +24,6 @@ TODO:
 [x] Add player cell management
 [ ] Add physics
 [ ] Add gameplay
-[ ] Add double buffer (mostly for mutiline games)
+[ ] Add double buffer (mostly for muti-line games)
 
 Copyright (c) 2026 Pierre Mollard. All Rights Reserved.

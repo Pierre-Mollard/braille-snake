@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <sys/poll.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 
 #define ESC_CHAR '\033'
@@ -171,6 +172,12 @@ static int install_signal_handlers(void) {
   return 0;
 }
 
+static long long now_ms(void) {
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (long long)ts.tv_sec * 1000LL + ts.tv_nsec / 1000000LL;
+}
+
 int main(int argc, char *argv[]) {
   printf("Welcome to BRAILLE SNAKE, press any key to start...\n");
 
@@ -194,27 +201,37 @@ int main(int argc, char *argv[]) {
   poll_fd[0].events = POLLIN;
   poll_fd[0].revents = 0;
 
+  long long time_frame = 100;
+  long long next_tick = now_ms() + time_frame;
+
   while (g_running) {
-    int ret_poll = poll(poll_fd, 1, 20); // ms
+    long long ms_left = next_tick - now_ms();
+    if (ms_left < 0)
+      ms_left = 0;
+
+    int ret_poll = poll(poll_fd, 1, (int)ms_left);
+
     if (ret_poll == -1) {
       if (errno == EINTR)
-        continue; // interrupted by SIGWINCH handler
+        continue;
       perror("poll");
       break;
     }
-    if (ret_poll > 0) {
-      if (poll_fd[0].revents & POLLIN) {
-        char c;
-        if (read(STDIN_FILENO, &c, 1) > 0) {
-          handle_user_input(c);
-          printf("%s", CLEAR_ALL);
-          printf("[%c]", c);
-          update_frame();
-          print_frame();
-          printf("[score:%d]", 0);
-          fflush(stdout);
-        }
+
+    if (ret_poll > 0 && (poll_fd[0].revents & POLLIN)) {
+      char c;
+      if (read(STDIN_FILENO, &c, 1) > 0) {
+        handle_user_input(c);
       }
+    }
+
+    if (ret_poll == 0 || now_ms() >= next_tick) {
+      update_frame();
+      printf("%s", CLEAR_ALL);
+      print_frame();
+      printf("[score:%d]", 0);
+      fflush(stdout);
+      next_tick += time_frame;
     }
   }
 
