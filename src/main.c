@@ -25,8 +25,8 @@
 #define ALTERNATIVE_BUFFER_ON CSI "?1049h"
 #define ALTERNATIVE_BUFFER_OFF CSI "?1049l"
 
-#define GAME_WIDTH 64
-#define GAME_HEIGHT 64 // for only one line must be 4
+#define GAME_WIDTH 16
+#define GAME_HEIGHT 4 // for only one line must be 4
 #define MAX_CONCURRENT_BONUS 3
 
 bool game_array[GAME_HEIGHT][GAME_WIDTH] = {0};
@@ -37,6 +37,7 @@ int player_score = 0;
 unsigned int player_length = 4;
 unsigned int bonus_available_number = 0;
 char input_display = ' ';
+bool god_mode = false;
 
 struct player_cell {
   unsigned int pos_x;
@@ -81,11 +82,11 @@ static int enable_raw_mode(void) {
 
 void spawn_goal() {
 
-  // TODO: make win here (player is occupying all cells)
-  if (player_length >= GAME_HEIGHT * GAME_WIDTH)
+  // check if any available place
+  if (player_length + bonus_available_number >= GAME_HEIGHT * GAME_WIDTH)
     return;
 
-  // NOTE: max same time reached
+  // max same time reached
   if (bonus_available_number >= MAX_CONCURRENT_BONUS)
     return;
 
@@ -151,6 +152,10 @@ void init_frame() {
 }
 
 int update_frame() {
+
+  if (player_length + bonus_available_number >= GAME_HEIGHT * GAME_WIDTH)
+    return 2;
+
   player_pos_x = (player_pos_x + player_speed_x) % GAME_WIDTH;
   player_pos_y = (player_pos_y + player_speed_y) % GAME_HEIGHT;
 
@@ -173,7 +178,8 @@ int update_frame() {
   }
   player_cells[0].pos_x = player_pos_x;
   player_cells[0].pos_y = player_pos_y;
-  if (game_array[player_cells[0].pos_y][player_cells[0].pos_x] == 1) {
+  if (!god_mode &&
+      game_array[player_cells[0].pos_y][player_cells[0].pos_x] == 1) {
     // NOTE: head is going in already occupied grid (not goal since not added
     // yet) so it has hit itself
     return 1;
@@ -286,6 +292,7 @@ int main(int argc, char *argv[]) {
   long long time_frame = 100;
   long long next_tick = now_ms() + time_frame;
   char input_display_content[20];
+  sprintf(input_display_content, "[input:     ]");
 
   while (g_running) {
     long long ms_left = next_tick - now_ms();
@@ -340,7 +347,7 @@ int main(int argc, char *argv[]) {
 
     if (ret_poll == 0 || now_ms() >= next_tick) {
       int dead = update_frame();
-      if (!dead) {
+      if (dead == 0) {
         spawn_goal();
         printf("%s", CLEAR_ALL);
         printf("%s", input_display_content);
@@ -356,8 +363,11 @@ int main(int argc, char *argv[]) {
                  bonus_cells[i].pos_y);
         }
 
-      } else {
+      } else if (dead == 1) {
         printf("[GAMEOVER]\n");
+        g_running = 0;
+      } else if (dead == 2) {
+        printf("[WIN]\n");
         g_running = 0;
       }
 
