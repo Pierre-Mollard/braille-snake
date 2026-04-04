@@ -11,6 +11,7 @@ target_sources(BrailleSnake
   PRIVATE
     src/main.c
     src/char-encoder.c
+    src/double-buffer.c
 
   PUBLIC
     FILE_SET HEADERS

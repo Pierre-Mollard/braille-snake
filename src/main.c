@@ -10,23 +10,8 @@
 #include <time.h>
 #include <unistd.h>
 
-#define ESC_CHAR '\033'
-#define ESC_SEP_CHAR '['
-#define ESC "\033"
-#define ESC_SEP "["
-#define CSI ESC ESC_SEP
-#define CURSOR_CMD "H"
-#define CURSOR_HOME CSI CURSOR_CMD
-#define CURSOR_TO_F CSI "%d;%d" CURSOR_CMD
-#define CLEAR_SCREEN CSI "2J"
-#define CLEAR_ALL CLEAR_SCREEN CURSOR_HOME
-#define HIDE_CURSOR CSI "?25l"
-#define SHOW_CURSOR CSI "?25h"
-#define ALTERNATIVE_BUFFER_ON CSI "?1049h"
-#define ALTERNATIVE_BUFFER_OFF CSI "?1049l"
-
-#define GAME_WIDTH 16
-#define GAME_HEIGHT 4 // for only one line must be 4
+#define GAME_WIDTH 64
+#define GAME_HEIGHT 32 // for only one line must be 4
 #define MAX_CONCURRENT_BONUS 3
 
 bool game_array[GAME_HEIGHT][GAME_WIDTH] = {0};
