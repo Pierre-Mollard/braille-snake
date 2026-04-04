@@ -25,7 +25,8 @@ TODO:
 [x] Add goal spawn
 [x] Add collision detection (good and bad)
 [x] Add win condition and defeat
+[ ] Add nice border and adapt for one line mode
 [ ] Add time display
-[ ] Add double buffer (mostly for muti-line games)
+[x] Add double buffer (mostly for muti-line games)
 
 Copyright (c) 2026 Pierre Mollard. All Rights Reserved.

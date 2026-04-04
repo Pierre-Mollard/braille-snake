@@ -38,15 +38,22 @@ struct snake_ctx {
   char *output_buffer;
 };
 
-int encode_grid_to_braille(bool in_grid[4][2], unsigned char out_utf8[4]);
+int encode_grid_to_braille(bool in_grid[4][2], unsigned char out_utf8[4],
+                           uint32_t *out_hex);
 
 void create_buffers(struct snake_ctx *ctx, unsigned int rows,
                     unsigned int cols);
 
 void free_buffers(struct snake_ctx *ctx);
 
-void tau_draw_full(struct snake_ctx *ctx);
+void draw_full(struct snake_ctx *ctx);
 
-void tau_draw_diff(struct snake_ctx *ctx);
+void draw_diff(struct snake_ctx *ctx);
 
-void tau_put_str(struct snake_ctx *ctx, char *str, size_t size, int x, int y);
+void draw_first(struct snake_ctx *ctx);
+
+void draw_last(struct snake_ctx *ctx);
+
+void put_str(struct snake_ctx *ctx, char *str, size_t size, int x, int y);
+
+void clear_everything(struct snake_ctx *ctx);

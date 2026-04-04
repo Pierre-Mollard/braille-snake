@@ -7,7 +7,8 @@
  * A braille character shows 8 dots, so 256 different patterns
  * Braille char in unicode are encoded in 3 bytes utf8
  */
-int encode_grid_to_braille(bool in_grid[4][2], unsigned char out_utf8[4]) {
+int encode_grid_to_braille(bool in_grid[4][2], unsigned char out_utf8[4],
+                           uint32_t *out_hex) {
 
   if (!in_grid || !out_utf8)
     return -1;
@@ -37,6 +38,7 @@ int encode_grid_to_braille(bool in_grid[4][2], unsigned char out_utf8[4]) {
   // out_utf8[2] = continuation byte
 
   int braille_unicode = 0x2800 + offset;
+  *out_hex = braille_unicode;
   out_utf8[0] = 0xE0 | (0x0F & (braille_unicode >> 12));
   out_utf8[1] = 0x80 | (0x3F & (braille_unicode >> 6));
   out_utf8[2] = 0x80 | (0x3F & braille_unicode);

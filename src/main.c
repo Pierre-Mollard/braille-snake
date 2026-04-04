@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/poll.h>
 #include <termios.h>
 #include <time.h>
@@ -96,7 +97,6 @@ void spawn_goal() {
       bonus_cells[index_free].pos_y = rand_y;
       bonus_cells[index_free].points = 1;
       bonus_cells[index_free].is_on_map = true;
-      printf("index:%d, posX:%d, posY%d\n", index_free, rand_x, rand_y);
       bonus_available_number++;
     }
   }
@@ -124,15 +124,22 @@ void handle_user_input(char c) {
 }
 
 void init_frame() {
+  srand(time(NULL));
+
   for (int x = 0; x < GAME_WIDTH; x++) {
     for (int y = 0; y < GAME_HEIGHT; y++) {
       game_array[y][x] = 0;
     }
   }
+
   for (int i = 0; i < player_length; i++) {
     player_cells[i].pos_x = player_pos_x - i;
     player_cells[i].pos_y = player_pos_y;
     player_cells[i].not_empty = true;
+  }
+
+  for (int i = 0; i < bonus_available_number; i++) {
+    bonus_cells[i].is_on_map = false;
   }
 }
 
@@ -198,11 +205,9 @@ int update_frame() {
   return 0;
 }
 
-void print_frame() {
-  if (GAME_HEIGHT != 4)
-    printf("\n");
-  for (int j = 0; j < GAME_HEIGHT; j += 4) {
-    for (int i = 0; i < GAME_WIDTH; i += 2) {
+void print_frame(struct snake_ctx *ctx, int offset_x, int offset_y) {
+  for (int j = 0, cell_y = 0; j < GAME_HEIGHT; j += 4, cell_y++) {
+    for (int i = 0, cell_x = 0; i < GAME_WIDTH; i += 2, cell_x++) {
       bool in_grid[4][2] = {0};
       in_grid[0][0] = game_array[j][i];
       in_grid[0][1] = game_array[j][i + 1];
@@ -213,13 +218,14 @@ void print_frame() {
       in_grid[3][0] = game_array[j + 3][i];
       in_grid[3][1] = game_array[j + 3][i + 1];
       unsigned char utf8_braille[4];
-      int rc = encode_grid_to_braille(in_grid, utf8_braille);
-      printf("%s", utf8_braille);
+      uint32_t hexa_braille = 0;
+      int rc = encode_grid_to_braille(in_grid, utf8_braille, &hexa_braille);
+      size_t pos = (size_t)(cell_y + offset_y) * (size_t)ctx->nb_cols +
+                   (size_t)(cell_x + offset_x);
+      ctx->back_buffer[pos].symbol = hexa_braille;
       if (rc != 0)
-        printf("!");
+        ctx->back_buffer[pos].symbol = '!';
     }
-    if (GAME_HEIGHT != 4)
-      printf("\n");
   }
 }
 
@@ -247,7 +253,6 @@ static long long now_ms(void) {
 }
 
 int main(int argc, char *argv[]) {
-  printf("Welcome to BRAILLE SNAKE, press any key to start...\n");
 
   if (enable_raw_mode() == -1) {
     perror("enable_raw_mode");
@@ -260,14 +265,15 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  srand(time(NULL));
-  for (int i = 0; i < bonus_available_number; i++) {
-    bonus_cells[i].is_on_map = false;
-  }
+  struct snake_ctx ctx = {0};
+  create_buffers(&ctx, 100, 100);
 
-  printf("%s", HIDE_CURSOR);
+  draw_first(&ctx);
+
   init_frame();
-  print_frame();
+
+  draw_full(&ctx);
+  print_frame(&ctx, 0, 1);
 
   struct pollfd poll_fd[1];
   poll_fd[0].fd = STDIN_FILENO;
@@ -276,7 +282,10 @@ int main(int argc, char *argv[]) {
 
   long long time_frame = 100;
   long long next_tick = now_ms() + time_frame;
+
   char input_display_content[20];
+  char output_display_content[40];
+  char output_score_content[40];
   sprintf(input_display_content, "[input:     ]");
 
   while (g_running) {
@@ -334,35 +343,45 @@ int main(int argc, char *argv[]) {
       int dead = update_frame();
       if (dead == 0) {
         spawn_goal();
-        printf("%s", CLEAR_ALL);
-        printf("%s", input_display_content);
-        print_frame();
-        printf("[score:%d]", player_score);
+        clear_everything(&ctx);
+        put_str(&ctx, input_display_content, strlen(input_display_content), 0,
+                0);
+        snprintf(output_score_content, sizeof(output_score_content),
+                 "[score:%d]", player_score);
+        put_str(&ctx, output_score_content, strlen(output_score_content), 50,
+                0);
+        print_frame(&ctx, 0, 1);
 
         int bonus_count = 0;
         for (int i = 0; i < bonus_available_number; i++) {
           if (!bonus_cells[i].is_on_map)
             continue;
           bonus_count++;
-          printf("\n[bonus#%d,x:%d,y:%d]", bonus_count, bonus_cells[i].pos_x,
-                 bonus_cells[i].pos_y);
+          snprintf(output_display_content, sizeof(output_display_content),
+                   "[bonus#%d,x:%d,y:%d]", bonus_count, bonus_cells[i].pos_x,
+                   bonus_cells[i].pos_y);
+          put_str(&ctx, output_display_content, strlen(output_display_content),
+                  0, 22 + i);
         }
 
       } else if (dead == 1) {
-        printf("[GAMEOVER]\n");
+        put_str(&ctx, "[GAMEOVER]", sizeof("[GAMEOVER]"), 50, 22);
         g_running = 0;
       } else if (dead == 2) {
-        printf("[WIN]\n");
+        put_str(&ctx, "[WIN]", sizeof("[WIN]"), 50, 22);
         g_running = 0;
       }
 
-      fflush(stdout);
+      draw_diff(&ctx);
       next_tick += time_frame;
     }
   }
 
-  printf("%s", SHOW_CURSOR);
-  printf("%s", CLEAR_ALL);
-  fflush(stdout);
+  // TODO: (not working) put a way to quit only after use read score and stuff
+  char last_char_to_end = ' ';
+  read(STDIN_FILENO, &last_char_to_end, 1);
+
+  draw_last(&ctx);
+  free_buffers(&ctx);
   return EXIT_SUCCESS;
 }

@@ -9,6 +9,7 @@
 
 void create_buffers(struct snake_ctx *ctx, unsigned int rows,
                     unsigned int cols) {
+  printf("ROWS=%d, COLS=%d\n", rows, cols);
   ctx->nb_rows = rows;
   ctx->nb_cols = cols;
   ctx->nb_cells = ctx->nb_rows * ctx->nb_cols;
@@ -32,17 +33,13 @@ void free_buffers(struct snake_ctx *ctx) {
   free(ctx->back_buffer);
   free(ctx->front_buffer);
   free(ctx->output_buffer);
-  free(ctx);
+  ctx->back_buffer = NULL;
+  ctx->front_buffer = NULL;
+  ctx->output_buffer = NULL;
 }
 
 static inline void write_in_term(const char *seq) {
   write(STDOUT_FILENO, seq, strlen(seq));
-}
-
-static inline void write_in_buffer_char(char **buffer_cursor, const char seq) {
-  **buffer_cursor = seq;
-  (*buffer_cursor)++;
-  **buffer_cursor = '\0';
 }
 
 static inline void write_in_buffer(char **buffer_cursor, const char *seq) {
@@ -99,7 +96,18 @@ int cells_differ(struct term_cell a, struct term_cell b) {
   return a.symbol != b.symbol;
 }
 
-void tau_draw_full(struct snake_ctx *ctx) {
+void draw_first(struct snake_ctx *ctx) {
+  write_in_term(ALTERNATIVE_BUFFER_ON);
+  write_in_term(HIDE_CURSOR);
+}
+
+void draw_last(struct snake_ctx *ctx) {
+  write_in_term(ALTERNATIVE_BUFFER_OFF);
+  write_in_term(SHOW_CURSOR);
+  write_in_term(CLEAR_ALL);
+}
+
+void draw_full(struct snake_ctx *ctx) {
   if (!ctx || !ctx->back_buffer || !ctx->output_buffer)
     return;
 
@@ -138,7 +146,7 @@ void tau_draw_full(struct snake_ctx *ctx) {
 // draws the difference between back buffer (what is new from the user)
 // and front buffer (believed to be on screen)
 // NOTE: current algo redraws in-between first and last diff in each row
-void tau_draw_diff(struct snake_ctx *ctx) {
+void draw_diff(struct snake_ctx *ctx) {
   if (!ctx || !ctx->front_buffer || !ctx->back_buffer || !ctx->output_buffer)
     return;
 
@@ -192,7 +200,7 @@ void tau_draw_diff(struct snake_ctx *ctx) {
   }
 }
 
-void tau_put_str(struct snake_ctx *ctx, char *str, size_t size, int x, int y) {
+void put_str(struct snake_ctx *ctx, char *str, size_t size, int x, int y) {
   if (!ctx || !str)
     return;
 
@@ -216,5 +224,11 @@ void tau_put_str(struct snake_ctx *ctx, char *str, size_t size, int x, int y) {
       break;
     size_t pos = (ctx->nb_cols * (size_t)y) + (size_t)start_x + i;
     ctx->back_buffer[pos].symbol = str[i];
+  }
+}
+
+void clear_everything(struct snake_ctx *ctx) {
+  for (int i = 0; i < ctx->nb_cells; i++) {
+    ctx->back_buffer[i].symbol = ' ';
   }
 }
