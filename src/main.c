@@ -30,19 +30,17 @@
 #define MAX_CONCURRENT_BONUS 3
 
 bool game_array[GAME_HEIGHT][GAME_WIDTH] = {0};
-const unsigned int player_init_pos_x = 3, player_init_pos_y = 2;
+unsigned int player_pos_x = 3, player_pos_y = 2;
 int player_speed_x = 1;
 int player_speed_y = 0;
 int player_score = 0;
-unsigned int player_length = 10;
+unsigned int player_length = 4;
 unsigned int bonus_available_number = 0;
 char input_display = ' ';
 
 struct player_cell {
   unsigned int pos_x;
   unsigned int pos_y;
-  unsigned int speed_x;
-  unsigned int speed_y;
   bool not_empty;
 };
 
@@ -119,19 +117,19 @@ void spawn_goal() {
 }
 
 void handle_user_input(char c) {
-  if (c == 'k') {
+  if (c == 'k' && player_speed_x != 0) {
     player_speed_x = 0;
     player_speed_y = -1;
   }
-  if (c == 'j') {
+  if (c == 'j' && player_speed_x != 0) {
     player_speed_x = 0;
     player_speed_y = 1;
   }
-  if (c == 'l') {
+  if (c == 'l' && player_speed_y != 0) {
     player_speed_x = 1;
     player_speed_y = 0;
   }
-  if (c == 'h') {
+  if (c == 'h' && player_speed_y != 0) {
     player_speed_x = -1;
     player_speed_y = 0;
   }
@@ -146,15 +144,16 @@ void init_frame() {
     }
   }
   for (int i = 0; i < player_length; i++) {
-    player_cells[i].pos_x = player_init_pos_x + i;
-    player_cells[i].pos_y = player_init_pos_y;
-    player_cells[i].speed_x = player_speed_x;
-    player_cells[i].speed_y = player_speed_y;
+    player_cells[i].pos_x = player_pos_x - i;
+    player_cells[i].pos_y = player_pos_y;
     player_cells[i].not_empty = true;
   }
 }
 
-void update_frame() {
+int update_frame() {
+  player_pos_x = (player_pos_x + player_speed_x) % GAME_WIDTH;
+  player_pos_y = (player_pos_y + player_speed_y) % GAME_HEIGHT;
+
   for (int i = 0; i < player_length; i++) {
     game_array[player_cells[i].pos_y][player_cells[i].pos_x] = 0;
   }
@@ -164,32 +163,38 @@ void update_frame() {
       game_array[bonus_cells[i].pos_y][bonus_cells[i].pos_x] = 0;
   }
 
-  for (int i = 0; i < player_length; i++) {
-    player_cells[i].pos_x =
-        (player_cells[i].pos_x + player_cells[i].speed_x) % GAME_WIDTH;
-    player_cells[i].pos_y =
-        (player_cells[i].pos_y + player_cells[i].speed_y) % GAME_HEIGHT;
-    if (i + 1 < player_length && (player_cells[i + 1].not_empty == true)) {
-      player_cells[i].speed_x = player_cells[i + 1].speed_x;
-      player_cells[i].speed_y = player_cells[i + 1].speed_y;
-    } else {
-      player_cells[i].speed_x = player_speed_x;
-      player_cells[i].speed_y = player_speed_y;
-    }
+  unsigned int last_x = 0, last_y = 0;
+  last_x = player_cells[player_length - 1].pos_x;
+  last_y = player_cells[player_length - 1].pos_y;
+  for (int i = player_length - 1; i > 0; i--) {
+    player_cells[i].pos_x = player_cells[i - 1].pos_x;
+    player_cells[i].pos_y = player_cells[i - 1].pos_y;
     game_array[player_cells[i].pos_y][player_cells[i].pos_x] = 1;
   }
+  player_cells[0].pos_x = player_pos_x;
+  player_cells[0].pos_y = player_pos_y;
+  if (game_array[player_cells[0].pos_y][player_cells[0].pos_x] == 1) {
+    // NOTE: head is going in already occupied grid (not goal since not added
+    // yet) so it has hit itself
+    return 1;
+  }
+  game_array[player_cells[0].pos_y][player_cells[0].pos_x] = 1;
 
   int score_gained = 0;
   for (int i = 0; i < bonus_available_number; i++) {
     if (!bonus_cells[i].is_on_map)
       continue;
 
-    if (bonus_cells[i].pos_x == player_cells[player_length - 1].pos_x &&
-        bonus_cells[i].pos_y == player_cells[player_length - 1].pos_y) {
+    if (bonus_cells[i].pos_x == player_pos_x &&
+        bonus_cells[i].pos_y == player_pos_y) {
       bonus_cells[i].is_on_map = false;
       player_score += bonus_cells[i].points;
       score_gained++;
-      // TODO: player_length++;
+      player_cells[player_length].pos_x = last_x;
+      player_cells[player_length].pos_y = last_y;
+      player_cells[player_length].not_empty = true;
+      player_length++;
+      game_array[last_y][last_x] = 1;
     }
   }
   bonus_available_number -= score_gained;
@@ -198,6 +203,8 @@ void update_frame() {
     if (bonus_cells[i].is_on_map)
       game_array[bonus_cells[i].pos_y][bonus_cells[i].pos_x] = 1;
   }
+
+  return 0;
 }
 
 void print_frame() {
@@ -332,20 +339,26 @@ int main(int argc, char *argv[]) {
     }
 
     if (ret_poll == 0 || now_ms() >= next_tick) {
-      update_frame();
-      spawn_goal();
-      printf("%s", CLEAR_ALL);
-      printf("%s", input_display_content);
-      print_frame();
-      printf("[score:%d]", player_score);
+      int dead = update_frame();
+      if (!dead) {
+        spawn_goal();
+        printf("%s", CLEAR_ALL);
+        printf("%s", input_display_content);
+        print_frame();
+        printf("[score:%d]", player_score);
 
-      int bonus_count = 0;
-      for (int i = 0; i < bonus_available_number; i++) {
-        if (!bonus_cells[i].is_on_map)
-          continue;
-        bonus_count++;
-        printf("\n[bonus#%d,x:%d,y:%d]", bonus_count, bonus_cells[i].pos_x,
-               bonus_cells[i].pos_y);
+        int bonus_count = 0;
+        for (int i = 0; i < bonus_available_number; i++) {
+          if (!bonus_cells[i].is_on_map)
+            continue;
+          bonus_count++;
+          printf("\n[bonus#%d,x:%d,y:%d]", bonus_count, bonus_cells[i].pos_x,
+                 bonus_cells[i].pos_y);
+        }
+
+      } else {
+        printf("[GAMEOVER]\n");
+        g_running = 0;
       }
 
       fflush(stdout);

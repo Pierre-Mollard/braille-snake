@@ -23,7 +23,7 @@ TODO:
 [x] Add player control
 [x] Add player cell management
 [x] Add goal spawn
-[ ] Add collision detection (good and bad)
+[x] Add collision detection (good and bad)
 [ ] Add win condition and defeat
 [ ] Add time display
 [ ] Add double buffer (mostly for muti-line games)
