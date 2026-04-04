@@ -30,7 +30,7 @@
 #define MAX_CONCURRENT_BONUS 3
 
 bool game_array[GAME_HEIGHT][GAME_WIDTH] = {0};
-unsigned int player_pos_x = 0, player_pos_y = 2;
+const unsigned int player_init_pos_x = 3, player_init_pos_y = 2;
 int player_speed_x = 1;
 int player_speed_y = 0;
 int player_score = 0;
@@ -50,7 +50,7 @@ struct bonus_cell {
   unsigned int pos_x;
   unsigned int pos_y;
   unsigned int points;
-  bool used;
+  bool is_on_map;
 };
 
 struct player_cell player_cells[GAME_HEIGHT * GAME_WIDTH] = {0};
@@ -100,7 +100,7 @@ void spawn_goal() {
     if (game_array[rand_y][rand_x] == 0) {
       // found place for spawn_goal
       int index_free = 0;
-      while (bonus_cells[index_free].used) {
+      while (bonus_cells[index_free].is_on_map) {
         index_free++;
         if (index_free > MAX_CONCURRENT_BONUS) {
           // if this happens big problem
@@ -111,7 +111,8 @@ void spawn_goal() {
       bonus_cells[index_free].pos_x = rand_x;
       bonus_cells[index_free].pos_y = rand_y;
       bonus_cells[index_free].points = 1;
-      bonus_cells[index_free].used = false;
+      bonus_cells[index_free].is_on_map = true;
+      printf("index:%d, posX:%d, posY%d\n", index_free, rand_x, rand_y);
       bonus_available_number++;
     }
   }
@@ -145,8 +146,8 @@ void init_frame() {
     }
   }
   for (int i = 0; i < player_length; i++) {
-    player_cells[i].pos_x = player_pos_x + i;
-    player_cells[i].pos_y = player_pos_y;
+    player_cells[i].pos_x = player_init_pos_x + i;
+    player_cells[i].pos_y = player_init_pos_y;
     player_cells[i].speed_x = player_speed_x;
     player_cells[i].speed_y = player_speed_y;
     player_cells[i].not_empty = true;
@@ -154,15 +155,13 @@ void init_frame() {
 }
 
 void update_frame() {
-  player_pos_x = (player_pos_x + player_speed_x) % GAME_WIDTH;
-  player_pos_y = (player_pos_y + player_speed_y) % GAME_HEIGHT;
-
   for (int i = 0; i < player_length; i++) {
     game_array[player_cells[i].pos_y][player_cells[i].pos_x] = 0;
   }
 
   for (int i = 0; i < bonus_available_number; i++) {
-    game_array[bonus_cells[i].pos_y][bonus_cells[i].pos_x] = 0;
+    if (bonus_cells[i].is_on_map)
+      game_array[bonus_cells[i].pos_y][bonus_cells[i].pos_x] = 0;
   }
 
   for (int i = 0; i < player_length; i++) {
@@ -182,21 +181,21 @@ void update_frame() {
 
   int score_gained = 0;
   for (int i = 0; i < bonus_available_number; i++) {
-    if (bonus_cells[i].used)
+    if (!bonus_cells[i].is_on_map)
       continue;
 
-    if (bonus_cells[i].pos_x == player_pos_x &&
-        bonus_cells[i].pos_y == player_pos_y) {
-      bonus_cells[i].used = true;
+    if (bonus_cells[i].pos_x == player_cells[player_length - 1].pos_x &&
+        bonus_cells[i].pos_y == player_cells[player_length - 1].pos_y) {
+      bonus_cells[i].is_on_map = false;
       player_score += bonus_cells[i].points;
       score_gained++;
-      player_length++;
+      // TODO: player_length++;
     }
   }
   bonus_available_number -= score_gained;
 
   for (int i = 0; i < bonus_available_number; i++) {
-    if (!bonus_cells[i].used)
+    if (bonus_cells[i].is_on_map)
       game_array[bonus_cells[i].pos_y][bonus_cells[i].pos_x] = 1;
   }
 }
@@ -264,6 +263,9 @@ int main(int argc, char *argv[]) {
   }
 
   srand(time(NULL));
+  for (int i = 0; i < bonus_available_number; i++) {
+    bonus_cells[i].is_on_map = false;
+  }
 
   printf("%s", HIDE_CURSOR);
   init_frame();
@@ -336,11 +338,10 @@ int main(int argc, char *argv[]) {
       printf("%s", input_display_content);
       print_frame();
       printf("[score:%d]", player_score);
-      printf("\n[x:%d,y:%d]", player_pos_x, player_pos_y);
 
       int bonus_count = 0;
       for (int i = 0; i < bonus_available_number; i++) {
-        if (bonus_cells[i].used)
+        if (!bonus_cells[i].is_on_map)
           continue;
         bonus_count++;
         printf("\n[bonus#%d,x:%d,y:%d]", bonus_count, bonus_cells[i].pos_x,
