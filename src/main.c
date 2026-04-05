@@ -282,6 +282,7 @@ int main(int argc, char *argv[]) {
 
   long long time_frame = 100;
   long long next_tick = now_ms() + time_frame;
+  long long first_tick = now_ms();
 
   char input_display_content[20];
   char output_display_content[40];
@@ -351,6 +352,14 @@ int main(int argc, char *argv[]) {
         put_str(&ctx, output_score_content, strlen(output_score_content), 50,
                 0);
         print_frame(&ctx, 0, 1);
+        snprintf(output_display_content, sizeof(output_display_content),
+                 "[speed:x=%d,y=%d]", player_speed_x, player_speed_y);
+        put_str(&ctx, output_display_content, strlen(output_display_content),
+                50, 22);
+        snprintf(output_display_content, sizeof(output_display_content),
+                 "[time:%f]", (now_ms() - first_tick) / 1000.0);
+        put_str(&ctx, output_display_content, strlen(output_display_content),
+                50, 23);
 
         int bonus_count = 0;
         for (int i = 0; i < bonus_available_number; i++) {
