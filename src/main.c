@@ -46,7 +46,6 @@ struct player_cell *player_cells;
 struct bonus_cell *bonus_cells;
 
 static volatile sig_atomic_t g_running = 1;
-
 static struct termios g_old_termios;
 
 static void restore_terminal(void) {
@@ -131,23 +130,35 @@ void draw_edges(struct snake_ctx *ctx, unsigned int x, unsigned int y,
   put_utf8(ctx, bottom_right, x + width, y + height);
 }
 
+int next_speed_x = 0;
+int next_speed_y = 1;
+
 void handle_user_input(char c) {
-  if (c == 'k' && player_speed_x != 0) {
-    player_speed_x = 0;
-    player_speed_y = -1;
+  int nx = next_speed_x;
+  int ny = next_speed_y;
+
+  if (c == 'k') {
+    nx = 0;
+    ny = -1;
   }
-  if (c == 'j' && player_speed_x != 0) {
-    player_speed_x = 0;
-    player_speed_y = 1;
+  if (c == 'j') {
+    nx = 0;
+    ny = 1;
   }
-  if (c == 'l' && player_speed_y != 0) {
-    player_speed_x = 1;
-    player_speed_y = 0;
+  if (c == 'l') {
+    nx = 1;
+    ny = 0;
   }
-  if (c == 'h' && player_speed_y != 0) {
-    player_speed_x = -1;
-    player_speed_y = 0;
+  if (c == 'h') {
+    nx = -1;
+    ny = 0;
   }
+
+  if (nx == -player_speed_x && ny == -player_speed_y)
+    return;
+
+  next_speed_x = nx;
+  next_speed_y = ny;
 }
 
 void init_frame(const unsigned int game_width, const unsigned int game_height) {
@@ -171,6 +182,9 @@ void init_frame(const unsigned int game_width, const unsigned int game_height) {
 }
 
 int update_frame(unsigned int game_width, unsigned int game_height) {
+
+  player_speed_x = next_speed_x;
+  player_speed_y = next_speed_y;
 
   if (player_length + bonus_available_number >= game_height * game_width)
     return 2;
@@ -342,13 +356,6 @@ int main(int argc, char *argv[]) {
   struct snake_ctx ctx = {0};
   create_buffers(&ctx, 100, 100);
 
-  draw_first(&ctx);
-
-  init_frame(game_width, game_height);
-
-  draw_full(&ctx);
-  print_frame(&ctx, 1, 3, game_width, game_height);
-
   struct pollfd poll_fd[1];
   poll_fd[0].fd = STDIN_FILENO;
   poll_fd[0].events = POLLIN;
@@ -357,11 +364,19 @@ int main(int argc, char *argv[]) {
   long long time_frame = 100;
   long long next_tick = now_ms() + time_frame;
   long long first_tick = now_ms();
+  int dead = 0;
 
   char input_display_content[20];
   char output_display_content[40];
   char output_time_content[40];
   char output_score_content[40];
+
+  draw_first(&ctx);
+
+  init_frame(game_width, game_height);
+
+  draw_full(&ctx);
+  print_frame(&ctx, 1, 3, game_width, game_height);
 
   while (g_running) {
     long long ms_left = next_tick - now_ms();
@@ -415,7 +430,7 @@ int main(int argc, char *argv[]) {
     }
 
     if (ret_poll == 0 || now_ms() >= next_tick) {
-      int dead = update_frame(game_width, game_height);
+      dead = update_frame(game_width, game_height);
       if (dead == 0) {
         spawn_goal(game_width, game_height, max_concurrent_bonus);
         clear_everything(&ctx);
@@ -469,15 +484,32 @@ int main(int argc, char *argv[]) {
         if (!one_line_mode) {
           put_str(&ctx, "[GAMEOVER]", sizeof("[GAMEOVER]"),
                   total_width / 2 - (strlen("[GAMEOVER]") / 2),
-                  total_height - 1);
+                  total_height / 2 - 1);
+          put_str(&ctx, "press q/Q/x/X/ESC to quit",
+                  sizeof("press q/Q/x/X/ESC to quit"),
+                  total_width / 2 - (strlen("press q/Q/x/X/ESC to quit") / 2),
+                  total_height / 2);
+          put_str(&ctx, "press r/R to restart", sizeof("press r/R to restart"),
+                  total_width / 2 - (strlen("press r/R to restart") / 2),
+                  total_height / 2 + 4);
         } else {
           put_str(&ctx, "[GAMEOVER]", sizeof("[GAMEOVER]"), total_width, 0);
         }
         g_running = 0;
       } else if (dead == 2) {
         if (!one_line_mode) {
-          put_str(&ctx, "[WIN]", sizeof("[WIN]"), total_width, 0);
+          put_str(&ctx, "[WIN]", sizeof("[WIN]"),
+                  total_width / 2 - (strlen("[WIN]") / 2),
+                  total_height / 2 - 1);
+          put_str(&ctx, "press q/Q/x/X/ESC to quit",
+                  sizeof("press q/Q/x/X/ESC to quit"),
+                  total_width / 2 - (strlen("press q/Q/x/X/ESC to quit") / 2),
+                  total_height / 2);
+          put_str(&ctx, "press r/R to restart", sizeof("press r/R to restart"),
+                  total_width / 2 - (strlen("press r/R to restart") / 2),
+                  total_height / 2 + 4);
         } else {
+          put_str(&ctx, "[WIN]", sizeof("[WIN]"), total_width, 0);
         }
         g_running = 0;
       }
@@ -485,11 +517,45 @@ int main(int argc, char *argv[]) {
       draw_diff(&ctx);
       next_tick += time_frame;
     }
-  }
 
-  // TODO: (not working) put a way to quit only after use read score and stuff
-  char last_char_to_end = ' ';
-  read(STDIN_FILENO, &last_char_to_end, 1);
+    if (dead != 0) {
+      char last_char_to_end = 0;
+      ssize_t n = 0;
+      while (true) {
+        n = read(STDIN_FILENO, &last_char_to_end, 1);
+        if (n == 1) {
+          if (last_char_to_end == 'q' || last_char_to_end == 'Q' ||
+              last_char_to_end == 'x' || last_char_to_end == 'X') {
+            break;
+          } else if (last_char_to_end == '\x1b') {
+            char seq[2];
+            ssize_t n1 = read(STDIN_FILENO, &seq[0], 1);
+            ssize_t n2 = read(STDIN_FILENO, &seq[1], 1);
+
+            if (n1 == 1 && n2 == 1 && seq[0] == '[' &&
+                (seq[1] == 'A' || seq[1] == 'B' || seq[1] == 'C' ||
+                 seq[1] == 'D')) {
+              continue; // arrow key, do not quit
+            }
+
+            break;
+          } else if (last_char_to_end == 'r' || last_char_to_end == 'R') {
+            last_char_to_end = 0;
+            g_running = 1;
+            player_score = 0;
+            player_pos_x = 3, player_pos_y = 2;
+            player_speed_x = 1;
+            player_speed_y = 0;
+            init_frame(game_width, game_height);
+            player_length = 4;
+            bonus_available_number = 0;
+            first_tick = now_ms();
+            break;
+          }
+        }
+      }
+    }
+  }
 
   draw_last(&ctx);
   free_buffers(&ctx);
