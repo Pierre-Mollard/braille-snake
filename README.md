@@ -28,7 +28,7 @@ TODO:
 [ ] Add nice border and adapt for one line mode
 [ ] Add confirm input to quit
 [ ] Add options to change game settings
-[ ] Adapt layout to game size (define a layout size)
+[x] Adapt layout to game size (define a layout size)
 [x] Add time display
 [x] Add double buffer (mostly for muti-line games)
 

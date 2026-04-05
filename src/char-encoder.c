@@ -45,3 +45,28 @@ int encode_grid_to_braille(bool in_grid[4][2], unsigned char out_utf8[4],
   out_utf8[3] = '\0';
   return 0;
 }
+
+// utf is 1 to 4 bytes, convert it from unicode (32bits)
+size_t utf8_encode(uint32_t symbol, char out[4]) {
+  if (symbol <= 0x7F) {
+    // on 1 byte utf is compatible with ascii
+    out[0] = (char)symbol;
+    return 1;
+  } else if (symbol <= 0x7FF) {
+    // next, utf8 contains 6 bits payload per bytes
+    out[0] = (char)(0xC0 | (symbol >> 6));
+    out[1] = (char)(0x80 | (symbol & 0x3F));
+    return 2;
+  } else if (symbol <= 0xFFFF) {
+    out[0] = (char)(0xE0 | (symbol >> 12));
+    out[1] = (char)(0x80 | ((symbol >> 6) & 0x3F));
+    out[2] = (char)(0x80 | (symbol & 0x3F));
+    return 3;
+  } else {
+    out[0] = (char)(0xF0 | (symbol >> 18));
+    out[1] = (char)(0x80 | ((symbol >> 12) & 0x3F));
+    out[2] = (char)(0x80 | ((symbol >> 6) & 0x3F));
+    out[3] = (char)(0x80 | (symbol & 0x3F));
+    return 4;
+  }
+}

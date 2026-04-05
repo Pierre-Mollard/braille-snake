@@ -41,6 +41,8 @@ struct snake_ctx {
 int encode_grid_to_braille(bool in_grid[4][2], unsigned char out_utf8[4],
                            uint32_t *out_hex);
 
+size_t utf8_encode(uint32_t symbol, char out[4]);
+
 void create_buffers(struct snake_ctx *ctx, unsigned int rows,
                     unsigned int cols);
 
@@ -55,5 +57,7 @@ void draw_first(struct snake_ctx *ctx);
 void draw_last(struct snake_ctx *ctx);
 
 void put_str(struct snake_ctx *ctx, char *str, size_t size, int x, int y);
+
+void put_utf8(struct snake_ctx *ctx, uint32_t hex, int x, int y);
 
 void clear_everything(struct snake_ctx *ctx);

@@ -3,6 +3,7 @@
 #include <poll.h>
 #include <signal.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,13 +18,14 @@
 bool g_god_mode = false;
 bool g_one_line_mode = false;
 
+char *game_title = "BRAILLE SNAKE";
 unsigned int player_pos_x = 3, player_pos_y = 2;
 int player_speed_x = 1;
 int player_speed_y = 0;
 int player_score = 0;
 unsigned int player_length = 4;
 unsigned int bonus_available_number = 0;
-char input_display = ' ';
+uint32_t utf8_symbol = ' ';
 
 struct player_cell {
   unsigned int pos_x;
@@ -121,8 +123,6 @@ void handle_user_input(char c) {
     player_speed_x = -1;
     player_speed_y = 0;
   }
-
-  input_display = c;
 }
 
 void init_frame(const unsigned int game_width, const unsigned int game_height) {
@@ -298,7 +298,7 @@ int main(int argc, char *argv[]) {
   init_frame(game_width, game_height);
 
   draw_full(&ctx);
-  print_frame(&ctx, 0, 1, game_width, game_height);
+  print_frame(&ctx, 2, 2, game_width, game_height);
 
   struct pollfd poll_fd[1];
   poll_fd[0].fd = STDIN_FILENO;
@@ -312,7 +312,6 @@ int main(int argc, char *argv[]) {
   char input_display_content[20];
   char output_display_content[40];
   char output_score_content[40];
-  sprintf(input_display_content, "[input:     ]");
 
   while (g_running) {
     long long ms_left = next_tick - now_ms();
@@ -339,19 +338,19 @@ int main(int argc, char *argv[]) {
             if (seq[0] == '[') {
               switch (seq[1]) {
               case 'A': /* up */
-                sprintf(input_display_content, "[input:  UP ]");
+                utf8_symbol = 0x2191;
                 handle_user_input('k');
                 break;
               case 'B': /* down */
-                sprintf(input_display_content, "[input: DOWN]");
+                utf8_symbol = 0x2193;
                 handle_user_input('j');
                 break;
               case 'C': /* right */
-                sprintf(input_display_content, "[input:RIGHT]");
+                utf8_symbol = 0x2192;
                 handle_user_input('l');
                 break;
               case 'D': /* left */
-                sprintf(input_display_content, "[input: LEFT]");
+                utf8_symbol = 0x2190;
                 handle_user_input('h');
                 break;
               }
@@ -359,7 +358,7 @@ int main(int argc, char *argv[]) {
           }
         } else {
           /* normal character */
-          sprintf(input_display_content, "[input:  %c  ]", c);
+          utf8_symbol = c;
           handle_user_input(c);
         }
       }
@@ -370,33 +369,26 @@ int main(int argc, char *argv[]) {
       if (dead == 0) {
         spawn_goal(game_width, game_height, max_concurrent_bonus);
         clear_everything(&ctx);
+        put_str(&ctx, game_title, strlen(game_title),
+                total_width / 2 - (strlen(game_title) / 2), 0);
+        snprintf(input_display_content, sizeof(input_display_content),
+                 "[input: ]");
         put_str(&ctx, input_display_content, strlen(input_display_content), 0,
-                0);
+                1);
+        put_utf8(&ctx, utf8_symbol, 7, 1);
         snprintf(output_score_content, sizeof(output_score_content),
-                 "[score:%d]", player_score);
-        put_str(&ctx, output_score_content, strlen(output_score_content), 50,
-                0);
-        print_frame(&ctx, 0, 1, game_width, game_height);
+                 "[score:%3d]", player_score);
+        put_str(&ctx, output_score_content, strlen(output_score_content),
+                total_width - strlen(output_score_content), 1);
+        print_frame(&ctx, 2, 2, game_width, game_height);
         snprintf(output_display_content, sizeof(output_display_content),
-                 "[speed:x=%d,y=%d]", player_speed_x, player_speed_y);
-        put_str(&ctx, output_display_content, strlen(output_display_content),
-                50, 22);
+                 "[speed:x=%2d,y=%2d]", player_speed_x, player_speed_y);
+        put_str(&ctx, output_display_content, strlen(output_display_content), 0,
+                total_height - 1);
         snprintf(output_display_content, sizeof(output_display_content),
-                 "[time:%f]", (now_ms() - first_tick) / 1000.0);
+                 "[time:%4.1f]", (now_ms() - first_tick) / 1000.0);
         put_str(&ctx, output_display_content, strlen(output_display_content),
-                50, 23);
-
-        int bonus_count = 0;
-        for (int i = 0; i < bonus_available_number; i++) {
-          if (!bonus_cells[i].is_on_map)
-            continue;
-          bonus_count++;
-          snprintf(output_display_content, sizeof(output_display_content),
-                   "[bonus#%d,x:%d,y:%d]", bonus_count, bonus_cells[i].pos_x,
-                   bonus_cells[i].pos_y);
-          put_str(&ctx, output_display_content, strlen(output_display_content),
-                  0, 22 + i);
-        }
+                total_width - strlen(output_display_content), total_height - 1);
 
       } else if (dead == 1) {
         put_str(&ctx, "[GAMEOVER]", sizeof("[GAMEOVER]"), 50, 22);
