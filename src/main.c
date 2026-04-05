@@ -11,11 +11,12 @@
 #include <time.h>
 #include <unistd.h>
 
-#define GAME_WIDTH 64
-#define GAME_HEIGHT 32 // for only one line must be 4
-#define MAX_CONCURRENT_BONUS 3
+#define BRAILLE_RATIO_H 4
+#define BRAILLE_RATIO_W 2
 
-bool game_array[GAME_HEIGHT][GAME_WIDTH] = {0};
+bool g_god_mode = false;
+bool g_one_line_mode = false;
+
 unsigned int player_pos_x = 3, player_pos_y = 2;
 int player_speed_x = 1;
 int player_speed_y = 0;
@@ -23,7 +24,6 @@ int player_score = 0;
 unsigned int player_length = 4;
 unsigned int bonus_available_number = 0;
 char input_display = ' ';
-bool god_mode = false;
 
 struct player_cell {
   unsigned int pos_x;
@@ -38,8 +38,9 @@ struct bonus_cell {
   bool is_on_map;
 };
 
-struct player_cell player_cells[GAME_HEIGHT * GAME_WIDTH] = {0};
-struct bonus_cell bonus_cells[MAX_CONCURRENT_BONUS] = {0};
+bool *game_array;
+struct player_cell *player_cells;
+struct bonus_cell *bonus_cells;
 
 static volatile sig_atomic_t g_running = 1;
 
@@ -66,28 +67,29 @@ static int enable_raw_mode(void) {
   return 0;
 }
 
-void spawn_goal() {
+void spawn_goal(const unsigned int game_width, const unsigned int game_height,
+                const unsigned int max_concurrent_bonus) {
 
   // check if any available place
-  if (player_length + bonus_available_number >= GAME_HEIGHT * GAME_WIDTH)
+  if (player_length + bonus_available_number >= game_height * game_width)
     return;
 
   // max same time reached
-  if (bonus_available_number >= MAX_CONCURRENT_BONUS)
+  if (bonus_available_number >= max_concurrent_bonus)
     return;
 
   // must be place (checked before)
   bool found_place = false;
   while (!found_place) {
-    unsigned int rand_y = rand() % GAME_HEIGHT;
-    unsigned int rand_x = rand() % GAME_WIDTH;
+    unsigned int rand_y = rand() % game_height;
+    unsigned int rand_x = rand() % game_width;
 
-    if (game_array[rand_y][rand_x] == 0) {
+    if (game_array[rand_y * game_width + rand_x] == 0) {
       // found place for spawn_goal
       int index_free = 0;
       while (bonus_cells[index_free].is_on_map) {
         index_free++;
-        if (index_free > MAX_CONCURRENT_BONUS) {
+        if (index_free > max_concurrent_bonus) {
           // if this happens big problem
           perror("index free moved past max possible");
         }
@@ -123,12 +125,12 @@ void handle_user_input(char c) {
   input_display = c;
 }
 
-void init_frame() {
+void init_frame(const unsigned int game_width, const unsigned int game_height) {
   srand(time(NULL));
 
-  for (int x = 0; x < GAME_WIDTH; x++) {
-    for (int y = 0; y < GAME_HEIGHT; y++) {
-      game_array[y][x] = 0;
+  for (int x = 0; x < game_width; x++) {
+    for (int y = 0; y < game_height; y++) {
+      game_array[y * game_width + x] = 0;
     }
   }
 
@@ -143,21 +145,21 @@ void init_frame() {
   }
 }
 
-int update_frame() {
+int update_frame(unsigned int game_width, unsigned int game_height) {
 
-  if (player_length + bonus_available_number >= GAME_HEIGHT * GAME_WIDTH)
+  if (player_length + bonus_available_number >= game_height * game_width)
     return 2;
 
-  player_pos_x = (player_pos_x + player_speed_x) % GAME_WIDTH;
-  player_pos_y = (player_pos_y + player_speed_y) % GAME_HEIGHT;
+  player_pos_x = (player_pos_x + player_speed_x) % game_width;
+  player_pos_y = (player_pos_y + player_speed_y) % game_height;
 
   for (int i = 0; i < player_length; i++) {
-    game_array[player_cells[i].pos_y][player_cells[i].pos_x] = 0;
+    game_array[player_cells[i].pos_y * game_width + player_cells[i].pos_x] = 0;
   }
 
   for (int i = 0; i < bonus_available_number; i++) {
     if (bonus_cells[i].is_on_map)
-      game_array[bonus_cells[i].pos_y][bonus_cells[i].pos_x] = 0;
+      game_array[bonus_cells[i].pos_y * game_width + bonus_cells[i].pos_x] = 0;
   }
 
   unsigned int last_x = 0, last_y = 0;
@@ -166,17 +168,18 @@ int update_frame() {
   for (int i = player_length - 1; i > 0; i--) {
     player_cells[i].pos_x = player_cells[i - 1].pos_x;
     player_cells[i].pos_y = player_cells[i - 1].pos_y;
-    game_array[player_cells[i].pos_y][player_cells[i].pos_x] = 1;
+    game_array[player_cells[i].pos_y * game_width + player_cells[i].pos_x] = 1;
   }
   player_cells[0].pos_x = player_pos_x;
   player_cells[0].pos_y = player_pos_y;
-  if (!god_mode &&
-      game_array[player_cells[0].pos_y][player_cells[0].pos_x] == 1) {
+  if (!g_god_mode &&
+      game_array[player_cells[0].pos_y * game_width + player_cells[0].pos_x] ==
+          1) {
     // NOTE: head is going in already occupied grid (not goal since not added
     // yet) so it has hit itself
     return 1;
   }
-  game_array[player_cells[0].pos_y][player_cells[0].pos_x] = 1;
+  game_array[player_cells[0].pos_y * game_width + player_cells[0].pos_x] = 1;
 
   int score_gained = 0;
   for (int i = 0; i < bonus_available_number; i++) {
@@ -192,31 +195,32 @@ int update_frame() {
       player_cells[player_length].pos_y = last_y;
       player_cells[player_length].not_empty = true;
       player_length++;
-      game_array[last_y][last_x] = 1;
+      game_array[last_y * game_width + last_x] = 1;
     }
   }
   bonus_available_number -= score_gained;
 
   for (int i = 0; i < bonus_available_number; i++) {
     if (bonus_cells[i].is_on_map)
-      game_array[bonus_cells[i].pos_y][bonus_cells[i].pos_x] = 1;
+      game_array[bonus_cells[i].pos_y * game_width + bonus_cells[i].pos_x] = 1;
   }
 
   return 0;
 }
 
-void print_frame(struct snake_ctx *ctx, int offset_x, int offset_y) {
-  for (int j = 0, cell_y = 0; j < GAME_HEIGHT; j += 4, cell_y++) {
-    for (int i = 0, cell_x = 0; i < GAME_WIDTH; i += 2, cell_x++) {
+void print_frame(struct snake_ctx *ctx, int offset_x, int offset_y,
+                 unsigned int game_width, unsigned int game_height) {
+  for (int j = 0, cell_y = 0; j < game_height; j += 4, cell_y++) {
+    for (int i = 0, cell_x = 0; i < game_width; i += 2, cell_x++) {
       bool in_grid[4][2] = {0};
-      in_grid[0][0] = game_array[j][i];
-      in_grid[0][1] = game_array[j][i + 1];
-      in_grid[1][0] = game_array[j + 1][i];
-      in_grid[1][1] = game_array[j + 1][i + 1];
-      in_grid[2][0] = game_array[j + 2][i];
-      in_grid[2][1] = game_array[j + 2][i + 1];
-      in_grid[3][0] = game_array[j + 3][i];
-      in_grid[3][1] = game_array[j + 3][i + 1];
+      in_grid[0][0] = game_array[j * game_width + i];
+      in_grid[0][1] = game_array[j * game_width + i + 1];
+      in_grid[1][0] = game_array[(j + 1) * game_width + i];
+      in_grid[1][1] = game_array[(j + 1) * game_width + (i + 1)];
+      in_grid[2][0] = game_array[(j + 2) * game_width + i];
+      in_grid[2][1] = game_array[(j + 2) * game_width + (i + 1)];
+      in_grid[3][0] = game_array[(j + 3) * game_width + i];
+      in_grid[3][1] = game_array[(j + 3) * game_width + (i + 1)];
       unsigned char utf8_braille[4];
       uint32_t hexa_braille = 0;
       int rc = encode_grid_to_braille(in_grid, utf8_braille, &hexa_braille);
@@ -265,15 +269,36 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  const bool god_mode = false;
+  const bool one_line_mode = false;
+  unsigned int total_height = 30;
+  unsigned int total_width = 50;
+  const unsigned int padding_height = 5;
+  const unsigned int padding_width = 4;
+  const unsigned int max_concurrent_bonus = 3;
+
+  unsigned int game_height = (total_height - padding_height) * BRAILLE_RATIO_H;
+  unsigned int game_width = (total_width - padding_width) * BRAILLE_RATIO_W;
+  if (one_line_mode) {
+    game_height = 4;
+    total_height = 1;
+  }
+  g_god_mode = god_mode;
+  g_one_line_mode = one_line_mode;
+
+  game_array = calloc(game_width * game_height, sizeof(bool));
+  player_cells = calloc(game_width * game_height, sizeof(*player_cells));
+  bonus_cells = calloc(max_concurrent_bonus, sizeof(*bonus_cells));
+
   struct snake_ctx ctx = {0};
   create_buffers(&ctx, 100, 100);
 
   draw_first(&ctx);
 
-  init_frame();
+  init_frame(game_width, game_height);
 
   draw_full(&ctx);
-  print_frame(&ctx, 0, 1);
+  print_frame(&ctx, 0, 1, game_width, game_height);
 
   struct pollfd poll_fd[1];
   poll_fd[0].fd = STDIN_FILENO;
@@ -341,9 +366,9 @@ int main(int argc, char *argv[]) {
     }
 
     if (ret_poll == 0 || now_ms() >= next_tick) {
-      int dead = update_frame();
+      int dead = update_frame(game_width, game_height);
       if (dead == 0) {
-        spawn_goal();
+        spawn_goal(game_width, game_height, max_concurrent_bonus);
         clear_everything(&ctx);
         put_str(&ctx, input_display_content, strlen(input_display_content), 0,
                 0);
@@ -351,7 +376,7 @@ int main(int argc, char *argv[]) {
                  "[score:%d]", player_score);
         put_str(&ctx, output_score_content, strlen(output_score_content), 50,
                 0);
-        print_frame(&ctx, 0, 1);
+        print_frame(&ctx, 0, 1, game_width, game_height);
         snprintf(output_display_content, sizeof(output_display_content),
                  "[speed:x=%d,y=%d]", player_speed_x, player_speed_y);
         put_str(&ctx, output_display_content, strlen(output_display_content),
@@ -392,5 +417,8 @@ int main(int argc, char *argv[]) {
 
   draw_last(&ctx);
   free_buffers(&ctx);
+  free(game_array);
+  free(player_cells);
+  free(bonus_cells);
   return EXIT_SUCCESS;
 }
