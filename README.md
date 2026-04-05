@@ -25,9 +25,10 @@ TODO:
 [x] Add goal spawn
 [x] Add collision detection (good and bad)
 [x] Add win condition and defeat
-[ ] Add nice border and adapt for one line mode
+[x] Add nice border and adapt for one line mode
 [ ] Add confirm input to quit
 [ ] Add options to change game settings
+[ ] Dont show texts if too small size (one line too)
 [x] Adapt layout to game size (define a layout size)
 [x] Add time display
 [x] Add double buffer (mostly for muti-line games)

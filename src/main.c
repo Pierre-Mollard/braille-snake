@@ -4,6 +4,7 @@
 #include <signal.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -106,6 +107,30 @@ void spawn_goal(const unsigned int game_width, const unsigned int game_height,
   }
 }
 
+void draw_edges(struct snake_ctx *ctx, unsigned int x, unsigned int y,
+                unsigned int width, unsigned int height, bool simple_mode) {
+
+  uint32_t hline = simple_mode ? '-' : 0x2550;
+  uint32_t vline = simple_mode ? '|' : 0x2551;
+  uint32_t top_left = simple_mode ? 'x' : 0x2554;
+  uint32_t top_right = simple_mode ? 'x' : 0x2557;
+  uint32_t bottom_left = simple_mode ? 'x' : 0x255A;
+  uint32_t bottom_right = simple_mode ? 'x' : 0x255D;
+
+  for (int i = x; i < x + width; i++) {
+    put_utf8(ctx, hline, i, y);
+    put_utf8(ctx, hline, i, height + y);
+  }
+  for (int i = y; i < y + height; i++) {
+    put_utf8(ctx, vline, x, i);
+    put_utf8(ctx, vline, x + width, i);
+  }
+  put_utf8(ctx, top_left, x, y);
+  put_utf8(ctx, top_right, x + width, y);
+  put_utf8(ctx, bottom_left, x, y + height);
+  put_utf8(ctx, bottom_right, x + width, y + height);
+}
+
 void handle_user_input(char c) {
   if (c == 'k' && player_speed_x != 0) {
     player_speed_x = 0;
@@ -150,8 +175,31 @@ int update_frame(unsigned int game_width, unsigned int game_height) {
   if (player_length + bonus_available_number >= game_height * game_width)
     return 2;
 
-  player_pos_x = (player_pos_x + player_speed_x) % game_width;
-  player_pos_y = (player_pos_y + player_speed_y) % game_height;
+  if (player_speed_x > 0) {
+    player_pos_x = (player_pos_x + player_speed_x) % game_width;
+  } else if (player_speed_x < 0) {
+    unsigned int step = (unsigned int)(-player_speed_x);
+    if (player_pos_x >= step) {
+      player_pos_x -= step;
+    } else {
+      player_pos_x = game_width - (step - player_pos_x) % game_width;
+      if (player_pos_x == game_width)
+        player_pos_x = 0;
+    }
+  }
+
+  if (player_speed_y > 0) {
+    player_pos_y = (player_pos_y + player_speed_y) % game_height;
+  } else if (player_speed_y < 0) {
+    unsigned int step = (unsigned int)(-player_speed_y);
+    if (player_pos_y >= step) {
+      player_pos_y -= step;
+    } else {
+      player_pos_y = game_height - (step - player_pos_y) % game_height;
+      if (player_pos_y == game_height)
+        player_pos_y = 0;
+    }
+  }
 
   for (int i = 0; i < player_length; i++) {
     game_array[player_cells[i].pos_y * game_width + player_cells[i].pos_x] = 0;
@@ -269,10 +317,11 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  const bool simple_mode = false;
   const bool god_mode = false;
   const bool one_line_mode = false;
   unsigned int total_height = 30;
-  unsigned int total_width = 50;
+  unsigned int total_width = 80;
   const unsigned int padding_height = 5;
   const unsigned int padding_width = 4;
   const unsigned int max_concurrent_bonus = 3;
@@ -298,7 +347,7 @@ int main(int argc, char *argv[]) {
   init_frame(game_width, game_height);
 
   draw_full(&ctx);
-  print_frame(&ctx, 2, 2, game_width, game_height);
+  print_frame(&ctx, 1, 3, game_width, game_height);
 
   struct pollfd poll_fd[1];
   poll_fd[0].fd = STDIN_FILENO;
@@ -311,6 +360,7 @@ int main(int argc, char *argv[]) {
 
   char input_display_content[20];
   char output_display_content[40];
+  char output_time_content[40];
   char output_score_content[40];
 
   while (g_running) {
@@ -369,32 +419,66 @@ int main(int argc, char *argv[]) {
       if (dead == 0) {
         spawn_goal(game_width, game_height, max_concurrent_bonus);
         clear_everything(&ctx);
-        put_str(&ctx, game_title, strlen(game_title),
-                total_width / 2 - (strlen(game_title) / 2), 0);
-        snprintf(input_display_content, sizeof(input_display_content),
-                 "[input: ]");
-        put_str(&ctx, input_display_content, strlen(input_display_content), 0,
-                1);
-        put_utf8(&ctx, utf8_symbol, 7, 1);
-        snprintf(output_score_content, sizeof(output_score_content),
-                 "[score:%3d]", player_score);
-        put_str(&ctx, output_score_content, strlen(output_score_content),
-                total_width - strlen(output_score_content), 1);
-        print_frame(&ctx, 2, 2, game_width, game_height);
-        snprintf(output_display_content, sizeof(output_display_content),
-                 "[speed:x=%2d,y=%2d]", player_speed_x, player_speed_y);
-        put_str(&ctx, output_display_content, strlen(output_display_content), 0,
-                total_height - 1);
-        snprintf(output_display_content, sizeof(output_display_content),
-                 "[time:%4.1f]", (now_ms() - first_tick) / 1000.0);
-        put_str(&ctx, output_display_content, strlen(output_display_content),
-                total_width - strlen(output_display_content), total_height - 1);
+        if (!one_line_mode) {
+          put_str(&ctx, game_title, strlen(game_title),
+                  total_width / 2 - (strlen(game_title) / 2), 0);
+          snprintf(input_display_content, sizeof(input_display_content),
+                   "[input: ]");
+          put_str(&ctx, input_display_content, strlen(input_display_content), 0,
+                  1);
+          put_utf8(&ctx, utf8_symbol, 7, 1);
+          snprintf(output_score_content, sizeof(output_score_content),
+                   "[score:%3d]", player_score);
+          put_str(&ctx, output_score_content, strlen(output_score_content),
+                  total_width - strlen(output_score_content), 1);
+
+          draw_edges(&ctx, 0, 2, total_width - padding_width + 2,
+                     total_height - padding_height + 1, simple_mode);
+          print_frame(&ctx, 1, 3, game_width, game_height);
+
+          snprintf(output_display_content, sizeof(output_display_content),
+                   "[speed:x=%2d,y=%2d]", player_speed_x, player_speed_y);
+          put_str(&ctx, output_display_content, strlen(output_display_content),
+                  0, total_height - 1);
+          snprintf(output_display_content, sizeof(output_display_content),
+                   "[time:%4.1f]", (now_ms() - first_tick) / 1000.0);
+          put_str(&ctx, output_display_content, strlen(output_display_content),
+                  total_width - strlen(output_display_content),
+                  total_height - 1);
+
+          snprintf(output_time_content, sizeof(output_time_content),
+                   "[updates:%lldms]", time_frame);
+          put_str(&ctx, output_time_content, strlen(output_time_content),
+                  total_width - strlen(output_display_content) -
+                      strlen(output_time_content),
+                  total_height - 1);
+        } else {
+          snprintf(input_display_content, sizeof(input_display_content),
+                   "[input: ]");
+          put_str(&ctx, input_display_content, strlen(input_display_content), 0,
+                  0);
+          put_utf8(&ctx, utf8_symbol, 7, 0);
+          print_frame(&ctx, 9, 0, game_width, game_height);
+          snprintf(output_score_content, sizeof(output_score_content),
+                   "[score:%3d]", player_score);
+          put_str(&ctx, output_score_content, strlen(output_score_content),
+                  game_width / 2 + 9, 0);
+        }
 
       } else if (dead == 1) {
-        put_str(&ctx, "[GAMEOVER]", sizeof("[GAMEOVER]"), 50, 22);
+        if (!one_line_mode) {
+          put_str(&ctx, "[GAMEOVER]", sizeof("[GAMEOVER]"),
+                  total_width / 2 - (strlen("[GAMEOVER]") / 2),
+                  total_height - 1);
+        } else {
+          put_str(&ctx, "[GAMEOVER]", sizeof("[GAMEOVER]"), total_width, 0);
+        }
         g_running = 0;
       } else if (dead == 2) {
-        put_str(&ctx, "[WIN]", sizeof("[WIN]"), 50, 22);
+        if (!one_line_mode) {
+          put_str(&ctx, "[WIN]", sizeof("[WIN]"), total_width, 0);
+        } else {
+        }
         g_running = 0;
       }
 
