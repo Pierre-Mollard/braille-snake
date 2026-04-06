@@ -20,7 +20,14 @@
 bool g_god_mode = false;
 bool g_one_line_mode = false;
 
-char *game_title = "BRAILLE SNAKE";
+char *txt_game_title = "BRAILLE SNAKE";
+char *txt_game_over_simple = "[GAMEOVER]";
+char *txt_win_simple = "[WIN]";
+char *txt_quit_details = "press q/Q/x/X/ESC to quit";
+char *txt_reset_details = "press r/R to restart";
+char *txt_game_over_one_line = "[GAMEOVER] (q/r?)";
+char *txt_win_one_line = "[WIN] (q/r?)";
+
 unsigned int player_pos_x = 3, player_pos_y = 2;
 int player_speed_x = 1;
 int player_speed_y = 0;
@@ -357,7 +364,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  bool simple_mode = false; // TODO: simple mode + one line = just score
+  bool simple_mode = false;
   bool god_mode = false;
   bool one_line_mode = false;
   unsigned int total_height = 30;
@@ -504,84 +511,120 @@ int main(int argc, char *argv[]) {
         spawn_goal(game_width, game_height, max_concurrent_bonus);
         clear_everything(&ctx);
         if (!one_line_mode) {
-          put_str(&ctx, game_title, strlen(game_title),
-                  total_width / 2 - (strlen(game_title) / 2), 0);
-          snprintf(input_display_content, sizeof(input_display_content),
-                   "[input: ]");
-          put_str(&ctx, input_display_content, strlen(input_display_content), 0,
-                  1);
-          put_utf8(&ctx, utf8_symbol, 7, 1);
+          int local_room_used = -2;
+          put_str(&ctx, txt_game_title, strlen(txt_game_title),
+                  total_width / 2 - (strlen(txt_game_title) / 2), 0);
+
           snprintf(output_score_content, sizeof(output_score_content),
                    "[score:%3d]", player_score);
-          put_str(&ctx, output_score_content, strlen(output_score_content),
-                  total_width - strlen(output_score_content), 1);
+          local_room_used += strlen(output_score_content);
+          if (local_room_used < total_width)
+            put_str(&ctx, output_score_content, strlen(output_score_content),
+                    total_width - strlen(output_score_content) + 1, 1);
+
+          snprintf(input_display_content, sizeof(input_display_content),
+                   "[input: ]");
+          local_room_used += strlen(input_display_content);
+          if (local_room_used < total_width) {
+            put_str(&ctx, input_display_content, strlen(input_display_content),
+                    0, 1);
+            put_utf8(&ctx, utf8_symbol, 7, 1);
+          }
 
           draw_edges(&ctx, 0, 2, total_width - padding_width + 2,
                      total_height - padding_height + 1, simple_mode);
           print_frame(&ctx, 1, 3, game_width, game_height);
 
+          local_room_used = -1;
           snprintf(output_display_content, sizeof(output_display_content),
                    "[speed:x=%2d,y=%2d]", player_speed_x, player_speed_y);
-          put_str(&ctx, output_display_content, strlen(output_display_content),
-                  0, total_height - 1);
-          if (god_mode)
-            put_str(&ctx, "[god_mode]", strlen(output_display_content),
-                    strlen(output_display_content), total_height - 1);
+          local_room_used += strlen(output_display_content);
+          if (local_room_used < total_width) {
+            put_str(&ctx, output_display_content,
+                    strlen(output_display_content), 0, total_height - 1);
+          }
+          if (god_mode) {
+            local_room_used += strlen("[god_mode]");
+            if (local_room_used < total_width)
+              put_str(&ctx, "[god_mode]", strlen(output_display_content),
+                      strlen(output_display_content), total_height - 1);
+          }
           snprintf(output_display_content, sizeof(output_display_content),
                    "[time:%4.1f]", (now_ms() - first_tick) / 1000.0);
-          put_str(&ctx, output_display_content, strlen(output_display_content),
-                  total_width - strlen(output_display_content),
-                  total_height - 1);
+          local_room_used += strlen(output_display_content);
+          if (local_room_used < total_width)
+            put_str(
+                &ctx, output_display_content, strlen(output_display_content),
+                total_width - strlen(output_display_content), total_height - 1);
 
           snprintf(output_time_content, sizeof(output_time_content),
                    "[updates:%lldms]", time_frame);
-          put_str(&ctx, output_time_content, strlen(output_time_content),
-                  total_width - strlen(output_display_content) -
-                      strlen(output_time_content),
-                  total_height - 1);
+          local_room_used += strlen(output_time_content);
+          if (local_room_used < total_width)
+            put_str(&ctx, output_time_content, strlen(output_time_content),
+                    total_width - strlen(output_display_content) -
+                        strlen(output_time_content),
+                    total_height - 1);
         } else {
-          snprintf(input_display_content, sizeof(input_display_content),
-                   "[input: ]");
-          put_str(&ctx, input_display_content, strlen(input_display_content), 0,
-                  0);
-          put_utf8(&ctx, utf8_symbol, 7, 0);
-          print_frame(&ctx, 9, 0, game_width, game_height);
+          int local_offset = 0;
+          if (!simple_mode) {
+            snprintf(input_display_content, sizeof(input_display_content),
+                     "[input: ]");
+            put_str(&ctx, input_display_content, strlen(input_display_content),
+                    0, 0);
+            local_offset = 9;
+          }
+          put_utf8(&ctx, utf8_symbol, local_offset - 2, 0);
+          print_frame(&ctx, local_offset, 0, game_width, game_height);
           snprintf(output_score_content, sizeof(output_score_content),
                    "[score:%3d]", player_score);
           put_str(&ctx, output_score_content, strlen(output_score_content),
-                  game_width / 2 + 9, 0);
+                  game_width / 2 + local_offset, 0);
         }
 
       } else if (dead == 1) {
         if (!one_line_mode) {
-          put_str(&ctx, "[GAMEOVER]", sizeof("[GAMEOVER]"),
-                  total_width / 2 - (strlen("[GAMEOVER]") / 2),
-                  total_height / 2 - 1);
-          put_str(&ctx, "press q/Q/x/X/ESC to quit",
-                  sizeof("press q/Q/x/X/ESC to quit"),
-                  total_width / 2 - (strlen("press q/Q/x/X/ESC to quit") / 2),
-                  total_height / 2);
-          put_str(&ctx, "press r/R to restart", sizeof("press r/R to restart"),
-                  total_width / 2 - (strlen("press r/R to restart") / 2),
-                  total_height / 2 + 4);
+          if (total_width > strlen(txt_quit_details)) {
+            put_str(&ctx, txt_game_over_simple, strlen(txt_game_over_simple),
+                    total_width / 2 - (strlen(txt_game_over_simple) / 2),
+                    total_height / 2 - 1);
+            put_str(&ctx, txt_quit_details, strlen(txt_quit_details),
+                    total_width / 2 - (strlen(txt_quit_details) / 2),
+                    total_height / 2);
+            put_str(&ctx, txt_reset_details, strlen(txt_reset_details),
+                    total_width / 2 - (strlen(txt_reset_details) / 2),
+                    total_height / 2 + 4);
+          } else {
+            put_str(&ctx, txt_game_over_one_line,
+                    strlen(txt_game_over_one_line),
+                    total_width / 2 - (strlen(txt_game_over_one_line) / 2),
+                    total_height / 2 - 1);
+          }
         } else {
-          put_str(&ctx, "[GAMEOVER]", sizeof("[GAMEOVER]"), total_width, 0);
+          put_str(&ctx, txt_game_over_one_line, strlen(txt_game_over_one_line),
+                  total_width, 0);
         }
         g_running = 0;
       } else if (dead == 2) {
         if (!one_line_mode) {
-          put_str(&ctx, "[WIN]", sizeof("[WIN]"),
-                  total_width / 2 - (strlen("[WIN]") / 2),
-                  total_height / 2 - 1);
-          put_str(&ctx, "press q/Q/x/X/ESC to quit",
-                  sizeof("press q/Q/x/X/ESC to quit"),
-                  total_width / 2 - (strlen("press q/Q/x/X/ESC to quit") / 2),
-                  total_height / 2);
-          put_str(&ctx, "press r/R to restart", sizeof("press r/R to restart"),
-                  total_width / 2 - (strlen("press r/R to restart") / 2),
-                  total_height / 2 + 4);
+          if (total_width > strlen(txt_quit_details)) {
+            put_str(&ctx, txt_win_simple, strlen(txt_win_simple),
+                    total_width / 2 - (strlen(txt_win_simple) / 2),
+                    total_height / 2 - 1);
+            put_str(&ctx, txt_quit_details, strlen(txt_quit_details),
+                    total_width / 2 - (strlen(txt_quit_details) / 2),
+                    total_height / 2);
+            put_str(&ctx, txt_reset_details, strlen(txt_reset_details),
+                    total_width / 2 - (strlen(txt_reset_details) / 2),
+                    total_height / 2 + 4);
+          } else {
+            put_str(&ctx, txt_win_one_line, strlen(txt_win_one_line),
+                    total_width / 2 - (strlen(txt_win_one_line) / 2),
+                    total_height / 2 - 1);
+          }
         } else {
-          put_str(&ctx, "[WIN]", sizeof("[WIN]"), total_width, 0);
+          put_str(&ctx, txt_win_one_line, strlen(txt_win_one_line), total_width,
+                  0);
         }
         g_running = 0;
       }

@@ -31,7 +31,7 @@ TODO:
 [x] Add time display
 [x] Add double buffer (mostly for muti-line games)
 [x] Add options to change game settings
-[ ] Dont show texts if too small size (one line too)
+[x] Dont show texts if too small size (one line too)
 [ ] Add speed variation with score?
 
 Copyright (c) 2026 Pierre Mollard. All Rights Reserved.
