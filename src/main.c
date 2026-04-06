@@ -19,6 +19,7 @@
 
 bool g_god_mode = false;
 bool g_one_line_mode = false;
+unsigned int g_multiplier = 1;
 
 char *txt_game_title = "BRAILLE SNAKE";
 char *txt_game_over_simple = "[GAMEOVER]";
@@ -259,12 +260,12 @@ int update_frame(unsigned int game_width, unsigned int game_height) {
     if (bonus_cells[i].pos_x == player_pos_x &&
         bonus_cells[i].pos_y == player_pos_y) {
       bonus_cells[i].is_on_map = false;
-      player_score += bonus_cells[i].points;
+      player_score += (bonus_cells[i].points * g_multiplier);
       score_gained++;
       player_cells[player_length].pos_x = last_x;
       player_cells[player_length].pos_y = last_y;
       player_cells[player_length].not_empty = true;
-      player_length++;
+      player_length += g_multiplier;
       game_array[last_y * game_width + last_x] = 1;
     }
   }
@@ -330,6 +331,7 @@ void usage(const char *prog_name) {
   printf("Usage: %s [options]\n", prog_name);
   printf("\n");
   printf("Braille Snake terminal game.\n");
+  printf("One food = 1 growth + score points \n");
   printf("\n");
   printf("Options:\n");
   printf("  -h            Show this help and exit\n");
@@ -340,6 +342,7 @@ void usage(const char *prog_name) {
   printf("  -g            Enable god mode\n");
   printf("  -s            Draw dashed border with fewer elements\n");
   printf("  -o            One-line mode (forces line count to 1)\n");
+  printf("  -m <value>    Multiplier for score and growth (min:1)\n");
   printf("\n");
   printf("Examples:\n");
   printf("  %s -c 40 -l 20\n", prog_name);
@@ -379,8 +382,13 @@ int main(int argc, char *argv[]) {
   unsigned int max_concurrent_bonus = 3;
 
   int opt;
-  while ((opt = getopt(argc, argv, "hl:c:gsof:")) != -1) {
+  while ((opt = getopt(argc, argv, "hl:c:gsof:m:")) != -1) {
     switch (opt) {
+    case 'm':
+      g_multiplier = atoi(optarg);
+      if (g_multiplier <= 0)
+        g_multiplier = 1;
+      break;
     case 'c':
       user_total_width = atoi(optarg);
       if (user_total_width <= 0)
@@ -508,6 +516,11 @@ int main(int argc, char *argv[]) {
     if (ret_poll == 0 || now_ms() >= next_tick) {
       dead = update_frame(game_width, game_height);
       if (dead == 0) {
+
+        time_frame = 100 - (player_score / 5) * 5;
+        if (time_frame < 40)
+          time_frame = 40;
+
         spawn_goal(game_width, game_height, max_concurrent_bonus);
         clear_everything(&ctx);
         if (!one_line_mode) {
@@ -521,6 +534,16 @@ int main(int argc, char *argv[]) {
           if (local_room_used < total_width)
             put_str(&ctx, output_score_content, strlen(output_score_content),
                     total_width - strlen(output_score_content) + 1, 1);
+
+          snprintf(output_display_content, sizeof(output_display_content),
+                   "[x%d]", g_multiplier);
+          local_room_used += strlen(output_display_content);
+          if (local_room_used < total_width)
+            put_str(&ctx, output_display_content,
+                    strlen(output_display_content),
+                    total_width - (strlen(output_display_content) +
+                                   strlen(output_score_content) - 1),
+                    1);
 
           snprintf(input_display_content, sizeof(input_display_content),
                    "[input: ]");

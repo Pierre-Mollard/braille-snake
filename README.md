@@ -32,6 +32,6 @@ TODO:
 [x] Add double buffer (mostly for muti-line games)
 [x] Add options to change game settings
 [x] Dont show texts if too small size (one line too)
-[ ] Add speed variation with score?
+[x] Add speed variation with score and multiplier
 
 Copyright (c) 2026 Pierre Mollard. All Rights Reserved.
