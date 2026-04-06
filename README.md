@@ -30,7 +30,7 @@ TODO:
 [x] Adapt layout to game size (define a layout size)
 [x] Add time display
 [x] Add double buffer (mostly for muti-line games)
-[ ] Add options to change game settings
+[x] Add options to change game settings
 [ ] Dont show texts if too small size (one line too)
 [ ] Add speed variation with score?
 

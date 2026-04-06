@@ -1,4 +1,5 @@
 #include "braille-snake.h"
+#include <bits/getopt_core.h>
 #include <errno.h>
 #include <poll.h>
 #include <signal.h>
@@ -318,6 +319,31 @@ static long long now_ms(void) {
   return (long long)ts.tv_sec * 1000LL + ts.tv_nsec / 1000000LL;
 }
 
+void usage(const char *prog_name) {
+  printf("Usage: %s [options]\n", prog_name);
+  printf("\n");
+  printf("Braille Snake terminal game.\n");
+  printf("\n");
+  printf("Options:\n");
+  printf("  -h            Show this help and exit\n");
+  printf("  -c <value>    Number of columns (min: 10)\n");
+  printf("  -l <value>    Number of lines (min: 1)\n");
+  printf(
+      "  -f <value>    Max food spawned at the same time (min: 1, max: 10)\n");
+  printf("  -g            Enable god mode\n");
+  printf("  -s            Draw dashed border with fewer elements\n");
+  printf("  -o            One-line mode (forces line count to 1)\n");
+  printf("\n");
+  printf("Examples:\n");
+  printf("  %s -c 40 -l 20\n", prog_name);
+  printf("  %s -c 60 -l 1 -o\n", prog_name);
+  printf("  %s -f 5 -g\n", prog_name);
+  printf("\n");
+  printf("Controls:\n");
+  printf("  h j k l / arrows      Move left/down/up/right\n");
+  printf("  q/Q                   Quit\n");
+}
+
 int main(int argc, char *argv[]) {
 
   if (enable_raw_mode() == -1) {
@@ -331,14 +357,57 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  const bool simple_mode = false;
-  const bool god_mode = false;
-  const bool one_line_mode = false;
+  bool simple_mode = false; // TODO: simple mode + one line = just score
+  bool god_mode = false;
+  bool one_line_mode = false;
   unsigned int total_height = 30;
   unsigned int total_width = 80;
+
+  unsigned int user_max_bonus = 0;
+  unsigned int user_total_width = 0;
+  unsigned int user_total_height = 0;
+
   const unsigned int padding_height = 5;
-  const unsigned int padding_width = 4;
-  const unsigned int max_concurrent_bonus = 3;
+  const unsigned int padding_width = 2;
+  unsigned int max_concurrent_bonus = 3;
+
+  int opt;
+  while ((opt = getopt(argc, argv, "hl:c:gsof:")) != -1) {
+    switch (opt) {
+    case 'c':
+      user_total_width = atoi(optarg);
+      if (user_total_width <= 0)
+        user_total_width = 10;
+      total_width = user_total_width;
+      break;
+    case 'l':
+      user_total_height = atoi(optarg);
+      if (user_total_height <= 0)
+        user_total_height = 1;
+      total_height = user_total_height;
+      break;
+    case 'f':
+      user_max_bonus = atoi(optarg);
+      if (user_max_bonus <= 0)
+        user_max_bonus = 1;
+      if (user_max_bonus > 10)
+        user_max_bonus = 10;
+      max_concurrent_bonus = user_max_bonus;
+      break;
+    case 'g':
+      god_mode = true;
+      break;
+    case 's':
+      simple_mode = true;
+      break;
+    case 'o':
+      one_line_mode = true;
+      break;
+    case 'h':
+      usage(argv[0]);
+      return 1;
+    }
+  }
 
   unsigned int game_height = (total_height - padding_height) * BRAILLE_RATIO_H;
   unsigned int game_width = (total_width - padding_width) * BRAILLE_RATIO_W;
@@ -455,6 +524,9 @@ int main(int argc, char *argv[]) {
                    "[speed:x=%2d,y=%2d]", player_speed_x, player_speed_y);
           put_str(&ctx, output_display_content, strlen(output_display_content),
                   0, total_height - 1);
+          if (god_mode)
+            put_str(&ctx, "[god_mode]", strlen(output_display_content),
+                    strlen(output_display_content), total_height - 1);
           snprintf(output_display_content, sizeof(output_display_content),
                    "[time:%4.1f]", (now_ms() - first_tick) / 1000.0);
           put_str(&ctx, output_display_content, strlen(output_display_content),
