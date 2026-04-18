@@ -1,5 +1,6 @@
 #include "braille-snake.h"
 #include <fcntl.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -66,10 +67,15 @@ static int run_server(void) {
     char buffer[512];
 
     // read while 0 char read
-    read(server_fd, buffer, 7);
-    printf("read: %s\n", buffer);
+    printf("reading...\n");
+    size_t n = read(client_fd, buffer, sizeof(buffer));
+    if (n < 0) {
+      close(client_fd);
+      continue;
+    }
 
-    write(server_fd, "done\n", 5);
+    buffer[n] = '\0';
+    printf("read: %s\n", buffer);
 
     close(client_fd);
   }
@@ -80,14 +86,16 @@ static int run_server(void) {
   return EXIT_SUCCESS;
 }
 
-static int render_scene() {
+static int send_data_unix(const char *content) {
 
   int client_fd = -1;
   struct sockaddr_un addr;
-  char buf[64];
-  ssize_t n;
 
   client_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (client_fd == -1) {
+    perror("socket");
+    return EXIT_FAILURE;
+  }
 
   memset(&addr, 0, sizeof(addr));
   addr.sun_family = AF_UNIX;
@@ -99,21 +107,11 @@ static int render_scene() {
     return EXIT_FAILURE;
   }
 
-  if (write(client_fd, "render\n", 7) == -1) {
+  if (write(client_fd, content, strlen(content)) == -1) {
     perror("write");
     close(client_fd);
     return EXIT_FAILURE;
   }
-
-  n = read(client_fd, buf, sizeof(buf) - 1);
-  if (n == -1) {
-    perror("read");
-    close(client_fd);
-    return EXIT_FAILURE;
-  }
-
-  buf[n] = '\0';
-  printf("%s", buf);
 
   close(client_fd);
   return EXIT_SUCCESS;
@@ -124,20 +122,16 @@ int tmux_server_mode_entry(const char *input) {
     printf("init mode\n");
     return run_server();
   } else if (strcmp(input, "render") == 0) {
-    printf("rendering\n");
-    return render_scene();
+    return send_data_unix(input);
   } else if (strcmp(input, "up") == 0) {
-    printf("up\n");
-    return EXIT_SUCCESS;
+    return send_data_unix(input);
   } else if (strcmp(input, "down") == 0) {
-    printf("down\n");
-    return EXIT_SUCCESS;
+    return send_data_unix(input);
   } else if (strcmp(input, "right") == 0) {
-    printf("right\n");
-    return EXIT_SUCCESS;
+    return send_data_unix(input);
   } else if (strcmp(input, "left") == 0) {
-    printf("left\n");
-    return EXIT_SUCCESS;
+    return send_data_unix(input);
   }
+
   return EXIT_FAILURE;
 }
