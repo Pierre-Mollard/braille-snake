@@ -357,6 +357,7 @@ void usage(const char *prog_name) {
 
 int main(int argc, char *argv[]) {
 
+  bool tmux_mode = false;
   bool simple_mode = false;
   bool god_mode = false;
   bool one_line_mode = false;
@@ -370,6 +371,7 @@ int main(int argc, char *argv[]) {
   const unsigned int padding_height = 5;
   const unsigned int padding_width = 2;
   unsigned int max_concurrent_bonus = 3;
+  char tmux_command_buf[64];
 
   int opt;
   while ((opt = getopt(argc, argv, "hl:c:gsof:m:t:")) != -1) {
@@ -409,12 +411,23 @@ int main(int argc, char *argv[]) {
       one_line_mode = true;
       break;
     case 't':
-      tmux_server_mode_entry(optarg);
-      return 0;
+      tmux_mode = true;
+      strncpy(tmux_command_buf, optarg, sizeof(tmux_command_buf));
+      break;
     case 'h':
       usage(argv[0]);
       return 1;
     }
+  }
+
+  if (tmux_mode) {
+    if (strcmp(tmux_command_buf, "") == 0) {
+      perror("tmux command empty");
+      return EXIT_FAILURE;
+    }
+
+    int return_status = tmux_server_mode_entry(tmux_command_buf);
+    return return_status;
   }
 
   if (enable_raw_mode() == -1) {

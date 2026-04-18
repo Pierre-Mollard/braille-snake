@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#define TMUX_LOCK_FILE "/tmp/braille-snake-tmux.lock"
+#define TMUX_SOCK_FILE "/tmp/braille-snake-tmux.sock"
+
 #define ESC_CHAR '\033'
 #define ESC_SEP_CHAR '['
 #define ESC "\033"
@@ -62,4 +65,4 @@ void put_utf8(struct snake_ctx *ctx, uint32_t hex, int x, int y);
 
 void clear_everything(struct snake_ctx *ctx);
 
-void tmux_server_mode_entry(char *input);
+int tmux_server_mode_entry(const char *input);
