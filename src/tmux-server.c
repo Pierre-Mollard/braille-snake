@@ -10,6 +10,8 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+static void print_scene(void) { printf("XXXXXX"); }
+
 static int run_server(void) {
   int lock_fd = -1;
   int server_fd = -1;
@@ -23,6 +25,7 @@ static int run_server(void) {
 
   if (flock(lock_fd, LOCK_EX | LOCK_NB) == -1) {
     fprintf(stderr, "braille-snake: server already running\n");
+    // TODO: return pid of server running
     close(lock_fd);
     return EXIT_SUCCESS;
   }
@@ -74,6 +77,8 @@ static int run_server(void) {
       continue;
     }
 
+    // TODO: move main to gameloop and multi thread
+
     buffer[n] = '\0';
     printf("read: %s\n", buffer);
 
@@ -117,12 +122,18 @@ static int send_data_unix(const char *content) {
   return EXIT_SUCCESS;
 }
 
-int tmux_server_mode_entry(const char *input) {
+int tmux_server_mode(const char *input, bool *load_game) {
+  *load_game = false;
   if (strcmp(input, "init") == 0) {
     printf("init mode\n");
-    return run_server();
+    int is_running = run_server();
+    if (is_running == EXIT_SUCCESS)
+      *load_game = true;
+    return is_running;
   } else if (strcmp(input, "render") == 0) {
-    return send_data_unix(input);
+    print_scene();
+    return EXIT_SUCCESS;
+    // TODO: use server data to print, return send_data_unix(input);
   } else if (strcmp(input, "up") == 0) {
     return send_data_unix(input);
   } else if (strcmp(input, "down") == 0) {

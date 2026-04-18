@@ -29,6 +29,9 @@ char *txt_reset_details = "press r/R to restart";
 char *txt_game_over_one_line = "[GAMEOVER] (q/r?)";
 char *txt_win_one_line = "[WIN] (q/r?)";
 
+const unsigned int padding_height = 5;
+const unsigned int padding_width = 2;
+
 unsigned int player_pos_x = 3, player_pos_y = 2;
 int player_speed_x = 1;
 int player_speed_y = 0;
@@ -368,8 +371,6 @@ int main(int argc, char *argv[]) {
   unsigned int user_total_width = 0;
   unsigned int user_total_height = 0;
 
-  const unsigned int padding_height = 5;
-  const unsigned int padding_width = 2;
   unsigned int max_concurrent_bonus = 3;
   char tmux_command_buf[64];
 
@@ -426,8 +427,11 @@ int main(int argc, char *argv[]) {
       return EXIT_FAILURE;
     }
 
-    int return_status = tmux_server_mode_entry(tmux_command_buf);
-    return return_status;
+    bool load_game = false;
+    int return_status = tmux_server_mode(tmux_command_buf, &load_game);
+
+    if (!load_game)
+      return return_status;
   }
 
   if (enable_raw_mode() == -1) {

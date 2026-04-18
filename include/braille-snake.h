@@ -65,4 +65,4 @@ void put_utf8(struct snake_ctx *ctx, uint32_t hex, int x, int y);
 
 void clear_everything(struct snake_ctx *ctx);
 
-int tmux_server_mode_entry(const char *input);
+int tmux_server_mode(const char *input, bool *load_game);
