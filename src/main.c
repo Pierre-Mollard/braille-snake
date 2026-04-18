@@ -343,6 +343,7 @@ void usage(const char *prog_name) {
   printf("  -s            Draw dashed border with fewer elements\n");
   printf("  -o            One-line mode (forces line count to 1)\n");
   printf("  -m <value>    Multiplier for score and growth (min:1)\n");
+  printf("  -t            Enable tmux integration (run as server)\n");
   printf("\n");
   printf("Examples:\n");
   printf("  %s -c 40 -l 20\n", prog_name);
@@ -355,17 +356,6 @@ void usage(const char *prog_name) {
 }
 
 int main(int argc, char *argv[]) {
-
-  if (enable_raw_mode() == -1) {
-    perror("enable_raw_mode");
-    return 1;
-  }
-  atexit(restore_terminal);
-
-  if (install_signal_handlers() == -1) {
-    perror("sigaction");
-    return 1;
-  }
 
   bool simple_mode = false;
   bool god_mode = false;
@@ -382,7 +372,7 @@ int main(int argc, char *argv[]) {
   unsigned int max_concurrent_bonus = 3;
 
   int opt;
-  while ((opt = getopt(argc, argv, "hl:c:gsof:m:")) != -1) {
+  while ((opt = getopt(argc, argv, "hl:c:gsof:m:t:")) != -1) {
     switch (opt) {
     case 'm':
       g_multiplier = atoi(optarg);
@@ -418,10 +408,24 @@ int main(int argc, char *argv[]) {
     case 'o':
       one_line_mode = true;
       break;
+    case 't':
+      tmux_server_mode_entry(optarg);
+      return 0;
     case 'h':
       usage(argv[0]);
       return 1;
     }
+  }
+
+  if (enable_raw_mode() == -1) {
+    perror("enable_raw_mode");
+    return 1;
+  }
+  atexit(restore_terminal);
+
+  if (install_signal_handlers() == -1) {
+    perror("sigaction");
+    return 1;
   }
 
   unsigned int game_height = (total_height - padding_height) * BRAILLE_RATIO_H;

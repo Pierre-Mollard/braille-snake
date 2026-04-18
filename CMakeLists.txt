@@ -12,6 +12,7 @@ target_sources(BrailleSnake
     src/main.c
     src/char-encoder.c
     src/double-buffer.c
+    src/tmux-server.c
 
   PUBLIC
     FILE_SET HEADERS
