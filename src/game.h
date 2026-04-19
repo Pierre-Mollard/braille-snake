@@ -65,6 +65,7 @@ typedef enum {
 
 void game_init(Game *g, unsigned int total_width, unsigned int total_height);
 void game_destroy(Game *g);
+void game_reset(Game *g);
 void game_handle_command(Game *g, Command cmd);
 GameState game_tick(Game *g);
 void spawn_goal(Game *g);

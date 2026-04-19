@@ -201,7 +201,6 @@ int main(int argc, char *argv[]) {
   game_init(&game, user_total_width, user_total_height);
   tty_init(&game);
   game_render_tty_running(&game, time_frame, 0.0, utf8_symbol);
-  game_handle_command(&game, CMD_RIGHT);
 
   while (g_running) {
     long long ms_left = next_tick - now_ms();
@@ -301,15 +300,11 @@ int main(int argc, char *argv[]) {
             break;
           } else if (last_char_to_end == 'r' || last_char_to_end == 'R') {
             last_char_to_end = 0;
+            game_reset(&game);
             g_running = 1;
-            game.player.score = 0;
-            game.player.pos_x = 3, game.player.pos_y = 2;
-            game.player.speed_x = 1;
-            game.player.speed_y = 0;
-            game.player.length = 4;
-            game.player.bonus_available_number = 0;
             first_tick = now_ms();
-            game_tick(&game); // TODO: this broke
+            next_tick = first_tick + time_frame;
+            game_state = GS_RUN;
             break;
           }
         }

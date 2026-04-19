@@ -22,7 +22,6 @@ To install with tmux, add the compiled exec to a specific location.
 Use the path in the tmux command to link to the game.
 
 ## TODO List
-TODO: 
 [x] Create Grid visible in braille
 [x] Add score display
 [x] Add player control

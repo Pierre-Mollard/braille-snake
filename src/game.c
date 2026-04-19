@@ -2,18 +2,44 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
-void game_init(Game *g, unsigned int total_width, unsigned int total_height) {
+void game_reset(Game *g) {
+  Player *p = &g->player;
+  size_t game_size = (size_t)g->game_width * (size_t)g->game_height;
 
-  // default values
-  g->player.pos_x = 3;
-  g->player.pos_y = 2;
-  g->player.speed_x = 1;
-  g->player.speed_y = 0;
-  g->player.length = 4;
-  g->player.score = 0;
-  g->player.bonus_available_number = 0;
+  memset(p->game_array, 0, game_size * sizeof(*p->game_array));
+  memset(p->player_cells, 0, game_size * sizeof(*p->player_cells));
+  memset(p->bonus_cells, 0, g->max_concurrent_bonus * sizeof(*p->bonus_cells));
+
+  p->pos_x = 3;
+  p->pos_y = 2;
+
+  p->speed_x = 1;
+  p->speed_y = 0;
+  p->next_speed_x = 1;
+  p->next_speed_y = 0;
+
+  p->length = 4;
+  p->score = 0;
+
+  for (unsigned int i = 0; i < p->length; i++) {
+    p->player_cells[i].pos_x = p->pos_x - i;
+    p->player_cells[i].pos_y = p->pos_y;
+    p->player_cells[i].not_empty = true;
+    p->game_array[p->player_cells[i].pos_y * g->game_width +
+                  p->player_cells[i].pos_x] = 1;
+  }
+
+  for (unsigned int i = 0; i < g->max_concurrent_bonus; i++) {
+    p->bonus_cells[i].is_on_map = false;
+  }
+
+  p->bonus_available_number = 0;
+}
+
+void game_init(Game *g, unsigned int total_width, unsigned int total_height) {
 
   g->total_height = total_height;
   g->total_width = total_width;
@@ -34,6 +60,7 @@ void game_init(Game *g, unsigned int total_width, unsigned int total_height) {
       calloc(g->max_concurrent_bonus, sizeof(*g->player.bonus_cells));
 
   srand(time(NULL));
+  game_reset(g);
 
   for (int x = 0; x < game_width; x++) {
     for (int y = 0; y < game_height; y++) {
