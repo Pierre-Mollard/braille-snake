@@ -1,6 +1,7 @@
 #include "mode-tty.h"
 #include "braille-snake.h"
 #include <string.h>
+#include <termios.h>
 
 // TODO: handle tty / tmux ctx
 struct snake_ctx g_snake_tty_ctx = {0};
@@ -13,11 +14,39 @@ char *txt_reset_details = "press r/R to restart";
 char *txt_game_over_one_line = "[GAMEOVER] (q/r?)";
 char *txt_win_one_line = "[WIN] (q/r?)";
 
+static struct termios g_old_termios;
+
+static void restore_terminal(void) {
+  tcsetattr(STDIN_FILENO, TCSAFLUSH, &g_old_termios);
+}
+
+static int enable_raw_mode(void) {
+  struct termios raw;
+
+  if (tcgetattr(STDIN_FILENO, &g_old_termios) == -1)
+    return -1;
+
+  raw = g_old_termios;
+  raw.c_lflag &= ~(ICANON | ECHO);
+  raw.c_cc[VMIN] = 0;
+  raw.c_cc[VTIME] = 0;
+
+  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1)
+    return -1;
+
+  return 0;
+}
+
 void tty_init(Game *g) {
 
   struct snake_ctx ctx = {0};
   create_buffers(&ctx, g->game_height, g->game_width);
   g_snake_tty_ctx = ctx;
+
+  if (enable_raw_mode() == -1) {
+    perror("enable_raw_mode");
+  }
+  atexit(restore_terminal);
 
   draw_first(&ctx);
   draw_full(&ctx);

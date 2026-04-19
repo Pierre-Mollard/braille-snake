@@ -9,7 +9,6 @@
 
 void create_buffers(struct snake_ctx *ctx, unsigned int rows,
                     unsigned int cols) {
-  printf("ROWS=%d, COLS=%d\n", rows, cols);
   ctx->nb_rows = rows;
   ctx->nb_cols = cols;
   ctx->nb_cells = ctx->nb_rows * ctx->nb_cols;

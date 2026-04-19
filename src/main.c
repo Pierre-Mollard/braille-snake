@@ -19,28 +19,6 @@
 uint32_t utf8_symbol = ' ';
 
 static volatile sig_atomic_t g_running = 1;
-static struct termios g_old_termios;
-
-static void restore_terminal(void) {
-  tcsetattr(STDIN_FILENO, TCSAFLUSH, &g_old_termios);
-}
-
-static int enable_raw_mode(void) {
-  struct termios raw;
-
-  if (tcgetattr(STDIN_FILENO, &g_old_termios) == -1)
-    return -1;
-
-  raw = g_old_termios;
-  raw.c_lflag &= ~(ICANON | ECHO);
-  raw.c_cc[VMIN] = 0;
-  raw.c_cc[VTIME] = 0;
-
-  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1)
-    return -1;
-
-  return 0;
-}
 
 static void handle_sigint(int signo) {
   (void)signo;
@@ -175,12 +153,6 @@ int main(int argc, char *argv[]) {
 
     return return_status;
   }
-
-  if (enable_raw_mode() == -1) {
-    perror("enable_raw_mode");
-    return 1;
-  }
-  atexit(restore_terminal);
 
   if (install_signal_handlers() == -1) {
     perror("sigaction");
