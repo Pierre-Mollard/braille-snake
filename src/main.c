@@ -1,4 +1,6 @@
 #include "braille-snake.h"
+#include "game.h"
+#include "mode-tty.h"
 #include <bits/getopt_core.h>
 #include <errno.h>
 #include <poll.h>
@@ -14,48 +16,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define BRAILLE_RATIO_H 4
-#define BRAILLE_RATIO_W 2
-
-bool g_god_mode = false;
-bool g_one_line_mode = false;
-unsigned int g_multiplier = 1;
-
-char *txt_game_title = "BRAILLE SNAKE";
-char *txt_game_over_simple = "[GAMEOVER]";
-char *txt_win_simple = "[WIN]";
-char *txt_quit_details = "press q/Q/x/X/ESC to quit";
-char *txt_reset_details = "press r/R to restart";
-char *txt_game_over_one_line = "[GAMEOVER] (q/r?)";
-char *txt_win_one_line = "[WIN] (q/r?)";
-
-const unsigned int padding_height = 5;
-const unsigned int padding_width = 2;
-
-unsigned int player_pos_x = 3, player_pos_y = 2;
-int player_speed_x = 1;
-int player_speed_y = 0;
-int player_score = 0;
-unsigned int player_length = 4;
-unsigned int bonus_available_number = 0;
 uint32_t utf8_symbol = ' ';
-
-struct player_cell {
-  unsigned int pos_x;
-  unsigned int pos_y;
-  bool not_empty;
-};
-
-struct bonus_cell {
-  unsigned int pos_x;
-  unsigned int pos_y;
-  unsigned int points;
-  bool is_on_map;
-};
-
-bool *game_array;
-struct player_cell *player_cells;
-struct bonus_cell *bonus_cells;
 
 static volatile sig_atomic_t g_running = 1;
 static struct termios g_old_termios;
@@ -79,232 +40,6 @@ static int enable_raw_mode(void) {
     return -1;
 
   return 0;
-}
-
-void spawn_goal(const unsigned int game_width, const unsigned int game_height,
-                const unsigned int max_concurrent_bonus) {
-
-  // check if any available place
-  if (player_length + bonus_available_number >= game_height * game_width)
-    return;
-
-  // max same time reached
-  if (bonus_available_number >= max_concurrent_bonus)
-    return;
-
-  // must be place (checked before)
-  bool found_place = false;
-  while (!found_place) {
-    unsigned int rand_y = rand() % game_height;
-    unsigned int rand_x = rand() % game_width;
-
-    if (game_array[rand_y * game_width + rand_x] == 0) {
-      // found place for spawn_goal
-      int index_free = 0;
-      while (bonus_cells[index_free].is_on_map) {
-        index_free++;
-        if (index_free > max_concurrent_bonus) {
-          // if this happens big problem
-          perror("index free moved past max possible");
-        }
-      }
-      found_place = true;
-      bonus_cells[index_free].pos_x = rand_x;
-      bonus_cells[index_free].pos_y = rand_y;
-      bonus_cells[index_free].points = 1;
-      bonus_cells[index_free].is_on_map = true;
-      bonus_available_number++;
-    }
-  }
-}
-
-void draw_edges(struct snake_ctx *ctx, unsigned int x, unsigned int y,
-                unsigned int width, unsigned int height, bool simple_mode) {
-
-  uint32_t hline = simple_mode ? '-' : 0x2550;
-  uint32_t vline = simple_mode ? '|' : 0x2551;
-  uint32_t top_left = simple_mode ? 'x' : 0x2554;
-  uint32_t top_right = simple_mode ? 'x' : 0x2557;
-  uint32_t bottom_left = simple_mode ? 'x' : 0x255A;
-  uint32_t bottom_right = simple_mode ? 'x' : 0x255D;
-
-  for (int i = x; i < x + width; i++) {
-    put_utf8(ctx, hline, i, y);
-    put_utf8(ctx, hline, i, height + y);
-  }
-  for (int i = y; i < y + height; i++) {
-    put_utf8(ctx, vline, x, i);
-    put_utf8(ctx, vline, x + width, i);
-  }
-  put_utf8(ctx, top_left, x, y);
-  put_utf8(ctx, top_right, x + width, y);
-  put_utf8(ctx, bottom_left, x, y + height);
-  put_utf8(ctx, bottom_right, x + width, y + height);
-}
-
-int next_speed_x = 0;
-int next_speed_y = 1;
-
-void handle_user_input(char c) {
-  int nx = next_speed_x;
-  int ny = next_speed_y;
-
-  if (c == 'k') {
-    nx = 0;
-    ny = -1;
-  }
-  if (c == 'j') {
-    nx = 0;
-    ny = 1;
-  }
-  if (c == 'l') {
-    nx = 1;
-    ny = 0;
-  }
-  if (c == 'h') {
-    nx = -1;
-    ny = 0;
-  }
-
-  if (nx == -player_speed_x && ny == -player_speed_y)
-    return;
-
-  next_speed_x = nx;
-  next_speed_y = ny;
-}
-
-void init_frame(const unsigned int game_width, const unsigned int game_height) {
-  srand(time(NULL));
-
-  for (int x = 0; x < game_width; x++) {
-    for (int y = 0; y < game_height; y++) {
-      game_array[y * game_width + x] = 0;
-    }
-  }
-
-  for (int i = 0; i < player_length; i++) {
-    player_cells[i].pos_x = player_pos_x - i;
-    player_cells[i].pos_y = player_pos_y;
-    player_cells[i].not_empty = true;
-  }
-
-  for (int i = 0; i < bonus_available_number; i++) {
-    bonus_cells[i].is_on_map = false;
-  }
-}
-
-int update_frame(unsigned int game_width, unsigned int game_height) {
-
-  player_speed_x = next_speed_x;
-  player_speed_y = next_speed_y;
-
-  if (player_length + bonus_available_number >= game_height * game_width)
-    return 2;
-
-  if (player_speed_x > 0) {
-    player_pos_x = (player_pos_x + player_speed_x) % game_width;
-  } else if (player_speed_x < 0) {
-    unsigned int step = (unsigned int)(-player_speed_x);
-    if (player_pos_x >= step) {
-      player_pos_x -= step;
-    } else {
-      player_pos_x = game_width - (step - player_pos_x) % game_width;
-      if (player_pos_x == game_width)
-        player_pos_x = 0;
-    }
-  }
-
-  if (player_speed_y > 0) {
-    player_pos_y = (player_pos_y + player_speed_y) % game_height;
-  } else if (player_speed_y < 0) {
-    unsigned int step = (unsigned int)(-player_speed_y);
-    if (player_pos_y >= step) {
-      player_pos_y -= step;
-    } else {
-      player_pos_y = game_height - (step - player_pos_y) % game_height;
-      if (player_pos_y == game_height)
-        player_pos_y = 0;
-    }
-  }
-
-  for (int i = 0; i < player_length; i++) {
-    game_array[player_cells[i].pos_y * game_width + player_cells[i].pos_x] = 0;
-  }
-
-  for (int i = 0; i < bonus_available_number; i++) {
-    if (bonus_cells[i].is_on_map)
-      game_array[bonus_cells[i].pos_y * game_width + bonus_cells[i].pos_x] = 0;
-  }
-
-  unsigned int last_x = 0, last_y = 0;
-  last_x = player_cells[player_length - 1].pos_x;
-  last_y = player_cells[player_length - 1].pos_y;
-  for (int i = player_length - 1; i > 0; i--) {
-    player_cells[i].pos_x = player_cells[i - 1].pos_x;
-    player_cells[i].pos_y = player_cells[i - 1].pos_y;
-    game_array[player_cells[i].pos_y * game_width + player_cells[i].pos_x] = 1;
-  }
-  player_cells[0].pos_x = player_pos_x;
-  player_cells[0].pos_y = player_pos_y;
-  if (!g_god_mode &&
-      game_array[player_cells[0].pos_y * game_width + player_cells[0].pos_x] ==
-          1) {
-    // NOTE: head is going in already occupied grid (not goal since not added
-    // yet) so it has hit itself
-    return 1;
-  }
-  game_array[player_cells[0].pos_y * game_width + player_cells[0].pos_x] = 1;
-
-  int score_gained = 0;
-  for (int i = 0; i < bonus_available_number; i++) {
-    if (!bonus_cells[i].is_on_map)
-      continue;
-
-    if (bonus_cells[i].pos_x == player_pos_x &&
-        bonus_cells[i].pos_y == player_pos_y) {
-      bonus_cells[i].is_on_map = false;
-      player_score += (bonus_cells[i].points * g_multiplier);
-      score_gained++;
-      player_cells[player_length].pos_x = last_x;
-      player_cells[player_length].pos_y = last_y;
-      player_cells[player_length].not_empty = true;
-      player_length += g_multiplier;
-      game_array[last_y * game_width + last_x] = 1;
-    }
-  }
-  bonus_available_number -= score_gained;
-
-  for (int i = 0; i < bonus_available_number; i++) {
-    if (bonus_cells[i].is_on_map)
-      game_array[bonus_cells[i].pos_y * game_width + bonus_cells[i].pos_x] = 1;
-  }
-
-  return 0;
-}
-
-void print_frame(struct snake_ctx *ctx, int offset_x, int offset_y,
-                 unsigned int game_width, unsigned int game_height) {
-  for (int j = 0, cell_y = 0; j < game_height; j += 4, cell_y++) {
-    for (int i = 0, cell_x = 0; i < game_width; i += 2, cell_x++) {
-      bool in_grid[4][2] = {0};
-      in_grid[0][0] = game_array[j * game_width + i];
-      in_grid[0][1] = game_array[j * game_width + i + 1];
-      in_grid[1][0] = game_array[(j + 1) * game_width + i];
-      in_grid[1][1] = game_array[(j + 1) * game_width + (i + 1)];
-      in_grid[2][0] = game_array[(j + 2) * game_width + i];
-      in_grid[2][1] = game_array[(j + 2) * game_width + (i + 1)];
-      in_grid[3][0] = game_array[(j + 3) * game_width + i];
-      in_grid[3][1] = game_array[(j + 3) * game_width + (i + 1)];
-      unsigned char utf8_braille[4];
-      uint32_t hexa_braille = 0;
-      int rc = encode_grid_to_braille(in_grid, utf8_braille, &hexa_braille);
-      size_t pos = (size_t)(cell_y + offset_y) * (size_t)ctx->nb_cols +
-                   (size_t)(cell_x + offset_x);
-      ctx->back_buffer[pos].symbol = hexa_braille;
-      if (rc != 0)
-        ctx->back_buffer[pos].symbol = '!';
-    }
-  }
 }
 
 static void handle_sigint(int signo) {
@@ -360,39 +95,37 @@ void usage(const char *prog_name) {
 
 int main(int argc, char *argv[]) {
 
-  bool tmux_mode = false;
-  bool simple_mode = false;
-  bool god_mode = false;
-  bool one_line_mode = false;
-  unsigned int total_height = 30;
-  unsigned int total_width = 80;
+  Game game = {0};
 
-  unsigned int user_max_bonus = 0;
-  unsigned int user_total_width = 0;
-  unsigned int user_total_height = 0;
-
-  unsigned int max_concurrent_bonus = 3;
-  char tmux_command_buf[64];
+  bool user_tmux_mode = false;
+  bool user_simple_mode = false;
+  bool user_god_mode = false;
+  bool user_one_line_mode = false;
+  unsigned int user_total_height = 30;
+  unsigned int user_total_width = 80;
+  unsigned int user_max_bonus = 3;
+  unsigned int user_multiplier = 1;
+  unsigned int user_padding_height = 5;
+  unsigned int user_padding_width = 2;
+  char tmux_command_buf[64] = {0};
 
   int opt;
   while ((opt = getopt(argc, argv, "hl:c:gsof:m:t:")) != -1) {
     switch (opt) {
     case 'm':
-      g_multiplier = atoi(optarg);
-      if (g_multiplier <= 0)
-        g_multiplier = 1;
+      user_multiplier = atoi(optarg);
+      if (user_multiplier <= 0)
+        user_multiplier = 1;
       break;
     case 'c':
       user_total_width = atoi(optarg);
       if (user_total_width <= 0)
         user_total_width = 10;
-      total_width = user_total_width;
       break;
     case 'l':
       user_total_height = atoi(optarg);
       if (user_total_height <= 0)
         user_total_height = 1;
-      total_height = user_total_height;
       break;
     case 'f':
       user_max_bonus = atoi(optarg);
@@ -400,20 +133,20 @@ int main(int argc, char *argv[]) {
         user_max_bonus = 1;
       if (user_max_bonus > 10)
         user_max_bonus = 10;
-      max_concurrent_bonus = user_max_bonus;
       break;
     case 'g':
-      god_mode = true;
+      user_god_mode = true;
       break;
     case 's':
-      simple_mode = true;
+      user_simple_mode = true;
       break;
     case 'o':
-      one_line_mode = true;
+      user_one_line_mode = true;
       break;
     case 't':
-      tmux_mode = true;
-      strncpy(tmux_command_buf, optarg, sizeof(tmux_command_buf));
+      user_tmux_mode = true;
+      strncpy(tmux_command_buf, optarg, sizeof(tmux_command_buf) - 1);
+      tmux_command_buf[sizeof(tmux_command_buf) - 1] = '\0';
       break;
     case 'h':
       usage(argv[0]);
@@ -421,7 +154,17 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (tmux_mode) {
+  game.padding_height = user_padding_height;
+  game.padding_width = user_padding_width;
+  game.total_height = user_total_height;
+  game.total_width = user_total_width;
+  game.god_mode = user_god_mode;
+  game.simple_mode = user_simple_mode;
+  game.one_line_mode = user_one_line_mode;
+  game.max_concurrent_bonus = user_max_bonus;
+  game.player.multiplier = user_multiplier;
+
+  if (user_tmux_mode) {
     if (strcmp(tmux_command_buf, "") == 0) {
       perror("tmux command empty");
       return EXIT_FAILURE;
@@ -430,8 +173,7 @@ int main(int argc, char *argv[]) {
     bool load_game = false;
     int return_status = tmux_server_mode(tmux_command_buf, &load_game);
 
-    if (!load_game)
-      return return_status;
+    return return_status;
   }
 
   if (enable_raw_mode() == -1) {
@@ -445,22 +187,6 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  unsigned int game_height = (total_height - padding_height) * BRAILLE_RATIO_H;
-  unsigned int game_width = (total_width - padding_width) * BRAILLE_RATIO_W;
-  if (one_line_mode) {
-    game_height = 4;
-    total_height = 1;
-  }
-  g_god_mode = god_mode;
-  g_one_line_mode = one_line_mode;
-
-  game_array = calloc(game_width * game_height, sizeof(bool));
-  player_cells = calloc(game_width * game_height, sizeof(*player_cells));
-  bonus_cells = calloc(max_concurrent_bonus, sizeof(*bonus_cells));
-
-  struct snake_ctx ctx = {0};
-  create_buffers(&ctx, 100, 100);
-
   struct pollfd poll_fd[1];
   poll_fd[0].fd = STDIN_FILENO;
   poll_fd[0].events = POLLIN;
@@ -469,19 +195,13 @@ int main(int argc, char *argv[]) {
   long long time_frame = 100;
   long long next_tick = now_ms() + time_frame;
   long long first_tick = now_ms();
-  int dead = 0;
 
-  char input_display_content[20];
-  char output_display_content[40];
-  char output_time_content[40];
-  char output_score_content[40];
+  GameState game_state = GS_RUN;
 
-  draw_first(&ctx);
-
-  init_frame(game_width, game_height);
-
-  draw_full(&ctx);
-  print_frame(&ctx, 1, 3, game_width, game_height);
+  game_init(&game, user_total_width, user_total_height);
+  tty_init(&game);
+  game_render_tty_running(&game, time_frame, 0.0, utf8_symbol);
+  game_handle_command(&game, CMD_RIGHT);
 
   while (g_running) {
     long long ms_left = next_tick - now_ms();
@@ -500,6 +220,8 @@ int main(int argc, char *argv[]) {
     if (ret_poll > 0 && (poll_fd[0].revents & POLLIN)) {
 
       char c;
+      Command command = CMD_RIGHT;
+      // TODO: handle both input loops at once (r/q/play)
       if (read(STDIN_FILENO, &c, 1) > 0) {
         if (c == '\x1b') {
           char seq[2];
@@ -509,19 +231,19 @@ int main(int argc, char *argv[]) {
               switch (seq[1]) {
               case 'A': /* up */
                 utf8_symbol = 0x2191;
-                handle_user_input('k');
+                command = tty_input('k');
                 break;
               case 'B': /* down */
                 utf8_symbol = 0x2193;
-                handle_user_input('j');
+                command = tty_input('j');
                 break;
               case 'C': /* right */
                 utf8_symbol = 0x2192;
-                handle_user_input('l');
+                command = tty_input('l');
                 break;
               case 'D': /* left */
                 utf8_symbol = 0x2190;
-                handle_user_input('h');
+                command = tty_input('h');
                 break;
               }
             }
@@ -529,155 +251,34 @@ int main(int argc, char *argv[]) {
         } else {
           /* normal character */
           utf8_symbol = c;
-          handle_user_input(c);
+          command = tty_input(c);
         }
+        if (command != CMD_NONE)
+          game_handle_command(&game, command);
       }
     }
 
     if (ret_poll == 0 || now_ms() >= next_tick) {
-      dead = update_frame(game_width, game_height);
-      if (dead == 0) {
-
-        time_frame = 100 - (player_score / 5) * 5;
+      game_state = game_tick(&game);
+      if (game_state == GS_RUN) {
+        time_frame = 100 - (game.player.score / 5) * 5;
         if (time_frame < 40)
           time_frame = 40;
-
-        spawn_goal(game_width, game_height, max_concurrent_bonus);
-        clear_everything(&ctx);
-        if (!one_line_mode) {
-          int local_room_used = -2;
-          put_str(&ctx, txt_game_title, strlen(txt_game_title),
-                  total_width / 2 - (strlen(txt_game_title) / 2), 0);
-
-          snprintf(output_score_content, sizeof(output_score_content),
-                   "[score:%3d]", player_score);
-          local_room_used += strlen(output_score_content);
-          if (local_room_used < total_width)
-            put_str(&ctx, output_score_content, strlen(output_score_content),
-                    total_width - strlen(output_score_content) + 1, 1);
-
-          snprintf(output_display_content, sizeof(output_display_content),
-                   "[x%d]", g_multiplier);
-          local_room_used += strlen(output_display_content);
-          if (local_room_used < total_width)
-            put_str(&ctx, output_display_content,
-                    strlen(output_display_content),
-                    total_width - (strlen(output_display_content) +
-                                   strlen(output_score_content) - 1),
-                    1);
-
-          snprintf(input_display_content, sizeof(input_display_content),
-                   "[input: ]");
-          local_room_used += strlen(input_display_content);
-          if (local_room_used < total_width) {
-            put_str(&ctx, input_display_content, strlen(input_display_content),
-                    0, 1);
-            put_utf8(&ctx, utf8_symbol, 7, 1);
-          }
-
-          draw_edges(&ctx, 0, 2, total_width - padding_width + 2,
-                     total_height - padding_height + 1, simple_mode);
-          print_frame(&ctx, 1, 3, game_width, game_height);
-
-          local_room_used = -1;
-          snprintf(output_display_content, sizeof(output_display_content),
-                   "[speed:x=%2d,y=%2d]", player_speed_x, player_speed_y);
-          local_room_used += strlen(output_display_content);
-          if (local_room_used < total_width) {
-            put_str(&ctx, output_display_content,
-                    strlen(output_display_content), 0, total_height - 1);
-          }
-          if (god_mode) {
-            local_room_used += strlen("[god_mode]");
-            if (local_room_used < total_width)
-              put_str(&ctx, "[god_mode]", strlen(output_display_content),
-                      strlen(output_display_content), total_height - 1);
-          }
-          snprintf(output_display_content, sizeof(output_display_content),
-                   "[time:%4.1f]", (now_ms() - first_tick) / 1000.0);
-          local_room_used += strlen(output_display_content);
-          if (local_room_used < total_width)
-            put_str(
-                &ctx, output_display_content, strlen(output_display_content),
-                total_width - strlen(output_display_content), total_height - 1);
-
-          snprintf(output_time_content, sizeof(output_time_content),
-                   "[updates:%lldms]", time_frame);
-          local_room_used += strlen(output_time_content);
-          if (local_room_used < total_width)
-            put_str(&ctx, output_time_content, strlen(output_time_content),
-                    total_width - strlen(output_display_content) -
-                        strlen(output_time_content),
-                    total_height - 1);
-        } else {
-          int local_offset = 0;
-          if (!simple_mode) {
-            snprintf(input_display_content, sizeof(input_display_content),
-                     "[input: ]");
-            put_str(&ctx, input_display_content, strlen(input_display_content),
-                    0, 0);
-            local_offset = 9;
-          }
-          put_utf8(&ctx, utf8_symbol, local_offset - 2, 0);
-          print_frame(&ctx, local_offset, 0, game_width, game_height);
-          snprintf(output_score_content, sizeof(output_score_content),
-                   "[score:%3d]", player_score);
-          put_str(&ctx, output_score_content, strlen(output_score_content),
-                  game_width / 2 + local_offset, 0);
-        }
-
-      } else if (dead == 1) {
-        if (!one_line_mode) {
-          if (total_width > strlen(txt_quit_details)) {
-            put_str(&ctx, txt_game_over_simple, strlen(txt_game_over_simple),
-                    total_width / 2 - (strlen(txt_game_over_simple) / 2),
-                    total_height / 2 - 1);
-            put_str(&ctx, txt_quit_details, strlen(txt_quit_details),
-                    total_width / 2 - (strlen(txt_quit_details) / 2),
-                    total_height / 2);
-            put_str(&ctx, txt_reset_details, strlen(txt_reset_details),
-                    total_width / 2 - (strlen(txt_reset_details) / 2),
-                    total_height / 2 + 4);
-          } else {
-            put_str(&ctx, txt_game_over_one_line,
-                    strlen(txt_game_over_one_line),
-                    total_width / 2 - (strlen(txt_game_over_one_line) / 2),
-                    total_height / 2 - 1);
-          }
-        } else {
-          put_str(&ctx, txt_game_over_one_line, strlen(txt_game_over_one_line),
-                  total_width, 0);
-        }
+        spawn_goal(&game);
+        double time_now = (now_ms() - first_tick) / 1000.0;
+        game_render_tty_running(&game, time_frame, time_now, utf8_symbol);
+      } else if (game_state == GS_LOSE) {
+        game_render_tty_dead(&game);
         g_running = 0;
-      } else if (dead == 2) {
-        if (!one_line_mode) {
-          if (total_width > strlen(txt_quit_details)) {
-            put_str(&ctx, txt_win_simple, strlen(txt_win_simple),
-                    total_width / 2 - (strlen(txt_win_simple) / 2),
-                    total_height / 2 - 1);
-            put_str(&ctx, txt_quit_details, strlen(txt_quit_details),
-                    total_width / 2 - (strlen(txt_quit_details) / 2),
-                    total_height / 2);
-            put_str(&ctx, txt_reset_details, strlen(txt_reset_details),
-                    total_width / 2 - (strlen(txt_reset_details) / 2),
-                    total_height / 2 + 4);
-          } else {
-            put_str(&ctx, txt_win_one_line, strlen(txt_win_one_line),
-                    total_width / 2 - (strlen(txt_win_one_line) / 2),
-                    total_height / 2 - 1);
-          }
-        } else {
-          put_str(&ctx, txt_win_one_line, strlen(txt_win_one_line), total_width,
-                  0);
-        }
+      } else if (game_state == GS_WIN) {
+        game_render_tty_win(&game);
         g_running = 0;
       }
 
-      draw_diff(&ctx);
       next_tick += time_frame;
     }
 
-    if (dead != 0) {
+    if (game_state != GS_RUN) {
       char last_char_to_end = 0;
       ssize_t n = 0;
       while (true) {
@@ -701,14 +302,14 @@ int main(int argc, char *argv[]) {
           } else if (last_char_to_end == 'r' || last_char_to_end == 'R') {
             last_char_to_end = 0;
             g_running = 1;
-            player_score = 0;
-            player_pos_x = 3, player_pos_y = 2;
-            player_speed_x = 1;
-            player_speed_y = 0;
-            init_frame(game_width, game_height);
-            player_length = 4;
-            bonus_available_number = 0;
+            game.player.score = 0;
+            game.player.pos_x = 3, game.player.pos_y = 2;
+            game.player.speed_x = 1;
+            game.player.speed_y = 0;
+            game.player.length = 4;
+            game.player.bonus_available_number = 0;
             first_tick = now_ms();
+            game_tick(&game); // TODO: this broke
             break;
           }
         }
@@ -716,10 +317,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  draw_last(&ctx);
-  free_buffers(&ctx);
-  free(game_array);
-  free(player_cells);
-  free(bonus_cells);
+  game_destroy(&game);
+  tty_destroy(&game);
   return EXIT_SUCCESS;
 }

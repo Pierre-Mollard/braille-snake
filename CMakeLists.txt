@@ -13,6 +13,12 @@ target_sources(BrailleSnake
     src/char-encoder.c
     src/double-buffer.c
     src/tmux-server.c
+    src/game.h
+    src/game.c
+    src/mode-tmux.c
+    src/mode-tmux.h
+    src/mode-tty.c
+    src/mode-tty.h
 
   PUBLIC
     FILE_SET HEADERS
