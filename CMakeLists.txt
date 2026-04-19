@@ -12,7 +12,6 @@ target_sources(BrailleSnake
     src/main.c
     src/char-encoder.c
     src/double-buffer.c
-    src/tmux-server.c
     src/game.h
     src/game.c
     src/mode-tmux.c

@@ -1,7 +1,3 @@
-#include "braille-snake.h"
-#include "game.h"
-#include "mode-tty.h"
-#include <bits/getopt_core.h>
 #include <errno.h>
 #include <poll.h>
 #include <signal.h>
@@ -15,6 +11,10 @@
 #include <termios.h>
 #include <time.h>
 #include <unistd.h>
+
+#include "game.h"
+#include "mode-tmux.h"
+#include "mode-tty.h"
 
 uint32_t utf8_symbol = ' ';
 
@@ -147,13 +147,28 @@ int main(int argc, char *argv[]) {
       return EXIT_FAILURE;
     }
 
-    bool load_game = false;
-    return tmux_server_mode(tmux_command_buf, &load_game);
+    tmux_command_type cmd_type = TMCD_ERROR;
+    int rc = tmux_handle_command(tmux_command_buf, &cmd_type);
+    if (rc != EXIT_SUCCESS && cmd_type == TMCD_UNDEF) {
+      printf("tmux_handle_command not found\n");
+      return EXIT_FAILURE;
+    }
+    if (rc != EXIT_SUCCESS || cmd_type == TMCD_ERROR) {
+      // print inside function used, printf("tmux_handle_command failed\n");
+      return EXIT_FAILURE;
+    }
+    if (rc != EXIT_SUCCESS || cmd_type == TMCD_SERVER) {
+      // print inside function used, printf("tmux_handle_command init server
+      // failed\n");
+      return EXIT_FAILURE;
+    }
+    if (rc == EXIT_SUCCESS && cmd_type == TMCD_CLIENT)
+      return EXIT_SUCCESS;
   }
 
   if (install_signal_handlers() == -1) {
     perror("sigaction");
-    return 1;
+    return EXIT_FAILURE;
   }
 
   struct pollfd poll_fd[1];

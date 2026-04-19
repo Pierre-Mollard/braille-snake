@@ -4,7 +4,6 @@
 #include <string.h>
 #include <termios.h>
 
-// TODO: handle tty / tmux ctx
 struct snake_ctx g_snake_tty_ctx = {0};
 
 char *txt_game_title = "BRAILLE SNAKE";
