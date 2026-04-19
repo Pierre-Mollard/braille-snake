@@ -55,6 +55,8 @@ typedef enum {
   CMD_DOWN,
   CMD_LEFT,
   CMD_RIGHT,
+  CMD_RESTART,
+  CMD_QUIT,
 } Command;
 
 typedef enum {

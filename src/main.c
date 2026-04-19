@@ -72,7 +72,6 @@ void usage(const char *prog_name) {
 }
 
 int main(int argc, char *argv[]) {
-
   Game game = {0};
 
   bool user_tmux_mode = false;
@@ -143,15 +142,13 @@ int main(int argc, char *argv[]) {
   game.player.multiplier = user_multiplier;
 
   if (user_tmux_mode) {
-    if (strcmp(tmux_command_buf, "") == 0) {
-      perror("tmux command empty");
+    if (tmux_command_buf[0] == '\0') {
+      fprintf(stderr, "tmux command empty\n");
       return EXIT_FAILURE;
     }
 
     bool load_game = false;
-    int return_status = tmux_server_mode(tmux_command_buf, &load_game);
-
-    return return_status;
+    return tmux_server_mode(tmux_command_buf, &load_game);
   }
 
   if (install_signal_handlers() == -1) {
@@ -165,8 +162,8 @@ int main(int argc, char *argv[]) {
   poll_fd[0].revents = 0;
 
   long long time_frame = 100;
-  long long next_tick = now_ms() + time_frame;
   long long first_tick = now_ms();
+  long long next_tick = first_tick + time_frame;
 
   GameState game_state = GS_RUN;
 
@@ -180,7 +177,6 @@ int main(int argc, char *argv[]) {
       ms_left = 0;
 
     int ret_poll = poll(poll_fd, 1, (int)ms_left);
-
     if (ret_poll == -1) {
       if (errno == EINTR)
         continue;
@@ -189,98 +185,79 @@ int main(int argc, char *argv[]) {
     }
 
     if (ret_poll > 0 && (poll_fd[0].revents & POLLIN)) {
-
       char c;
-      Command command = CMD_RIGHT;
-      // TODO: handle both input loops at once (r/q/play)
+      Command command = CMD_NONE;
+
       if (read(STDIN_FILENO, &c, 1) > 0) {
         if (c == '\x1b') {
           char seq[2];
           if (read(STDIN_FILENO, &seq[0], 1) > 0 &&
-              read(STDIN_FILENO, &seq[1], 1) > 0) {
-            if (seq[0] == '[') {
-              switch (seq[1]) {
-              case 'A': /* up */
-                utf8_symbol = 0x2191;
-                command = tty_input('k');
-                break;
-              case 'B': /* down */
-                utf8_symbol = 0x2193;
-                command = tty_input('j');
-                break;
-              case 'C': /* right */
-                utf8_symbol = 0x2192;
-                command = tty_input('l');
-                break;
-              case 'D': /* left */
-                utf8_symbol = 0x2190;
-                command = tty_input('h');
-                break;
-              }
+              read(STDIN_FILENO, &seq[1], 1) > 0 && seq[0] == '[') {
+            switch (seq[1]) {
+            case 'A':
+              utf8_symbol = 0x2191;
+              command = CMD_UP;
+              break;
+            case 'B':
+              utf8_symbol = 0x2193;
+              command = CMD_DOWN;
+              break;
+            case 'C':
+              utf8_symbol = 0x2192;
+              command = CMD_RIGHT;
+              break;
+            case 'D':
+              utf8_symbol = 0x2190;
+              command = CMD_LEFT;
+              break;
             }
+          } else {
+            command = CMD_QUIT;
           }
         } else {
-          /* normal character */
-          utf8_symbol = c;
+          utf8_symbol = (uint32_t)c;
           command = tty_input(c);
         }
+      }
+
+      if (game_state == GS_RUN) {
         if (command != CMD_NONE)
           game_handle_command(&game, command);
+      } else {
+        if (command == CMD_RESTART) {
+          game_reset(&game);
+          first_tick = now_ms();
+          next_tick = first_tick + time_frame;
+          game_state = GS_RUN;
+          game_render_tty_running(&game, time_frame, 0.0, utf8_symbol);
+        } else if (command == CMD_QUIT) {
+          break;
+        }
+      }
+
+      if (game_state == GS_RUN && (command == CMD_QUIT)) {
+        break;
       }
     }
 
-    if (ret_poll == 0 || now_ms() >= next_tick) {
+    if (game_state == GS_RUN && now_ms() >= next_tick) {
       game_state = game_tick(&game);
+
       if (game_state == GS_RUN) {
         time_frame = 100 - (game.player.score / 5) * 5;
         if (time_frame < 40)
           time_frame = 40;
+
         spawn_goal(&game);
         double time_now = (now_ms() - first_tick) / 1000.0;
         game_render_tty_running(&game, time_frame, time_now, utf8_symbol);
       } else if (game_state == GS_LOSE) {
         game_render_tty_dead(&game);
-        g_running = 0;
       } else if (game_state == GS_WIN) {
         game_render_tty_win(&game);
-        g_running = 0;
       }
 
       next_tick += time_frame;
-    }
-
-    if (game_state != GS_RUN) {
-      char last_char_to_end = 0;
-      ssize_t n = 0;
-      while (true) {
-        n = read(STDIN_FILENO, &last_char_to_end, 1);
-        if (n == 1) {
-          if (last_char_to_end == 'q' || last_char_to_end == 'Q' ||
-              last_char_to_end == 'x' || last_char_to_end == 'X') {
-            break;
-          } else if (last_char_to_end == '\x1b') {
-            char seq[2];
-            ssize_t n1 = read(STDIN_FILENO, &seq[0], 1);
-            ssize_t n2 = read(STDIN_FILENO, &seq[1], 1);
-
-            if (n1 == 1 && n2 == 1 && seq[0] == '[' &&
-                (seq[1] == 'A' || seq[1] == 'B' || seq[1] == 'C' ||
-                 seq[1] == 'D')) {
-              continue; // arrow key, do not quit
-            }
-
-            break;
-          } else if (last_char_to_end == 'r' || last_char_to_end == 'R') {
-            last_char_to_end = 0;
-            game_reset(&game);
-            g_running = 1;
-            first_tick = now_ms();
-            next_tick = first_tick + time_frame;
-            game_state = GS_RUN;
-            break;
-          }
-        }
-      }
     }
   }
 

@@ -1,5 +1,6 @@
 #include "mode-tty.h"
 #include "braille-snake.h"
+#include "game.h"
 #include <string.h>
 #include <termios.h>
 
@@ -60,17 +61,26 @@ void tty_destroy(Game *g) {
 }
 
 Command tty_input(char input_char) {
-  if (input_char == 'k') {
+  if (input_char == 'k' || input_char == 'K') {
     return CMD_UP;
   }
-  if (input_char == 'j') {
+  if (input_char == 'j' || input_char == 'J') {
     return CMD_DOWN;
   }
-  if (input_char == 'l') {
+  if (input_char == 'l' || input_char == 'L') {
     return CMD_RIGHT;
   }
-  if (input_char == 'h') {
+  if (input_char == 'h' || input_char == 'H') {
     return CMD_LEFT;
+  }
+  if (input_char == 'r' || input_char == 'R') {
+    return CMD_RESTART;
+  }
+  if (input_char == 'q' || input_char == 'Q') {
+    return CMD_QUIT;
+  }
+  if (input_char == 'x' || input_char == 'X') {
+    return CMD_QUIT;
   }
   return CMD_NONE;
 }
