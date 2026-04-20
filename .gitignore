@@ -1,5 +1,6 @@
 # Cmake default build directory
 build/
+build-debug/
 
 # Clangd cache directory
 .cache/

@@ -124,6 +124,12 @@ int main(int argc, char *argv[]) {
       user_tmux_mode = true;
       strncpy(tmux_command_buf, optarg, sizeof(tmux_command_buf) - 1);
       tmux_command_buf[sizeof(tmux_command_buf) - 1] = '\0';
+
+      // override user params in tmux mode
+      user_one_line_mode = true;
+      user_simple_mode = true;
+      user_total_width = 6;
+      user_max_bonus = 1;
       break;
     case 'h':
       usage(argv[0]);

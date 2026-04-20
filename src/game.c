@@ -43,6 +43,12 @@ void game_init(Game *g, unsigned int total_width, unsigned int total_height) {
 
   g->total_height = total_height;
   g->total_width = total_width;
+
+  if (g->simple_mode && g->one_line_mode) {
+    g->padding_height = 0;
+    g->padding_width = 0;
+  }
+
   unsigned int game_height =
       (total_height - g->padding_height) * BRAILLE_RATIO_H;
   unsigned int game_width = (total_width - g->padding_width) * BRAILLE_RATIO_W;

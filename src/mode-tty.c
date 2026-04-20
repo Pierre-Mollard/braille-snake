@@ -230,13 +230,18 @@ void game_render_tty_running(const Game *g, long long time_frame,
       put_str(&g_snake_tty_ctx, input_display_content,
               strlen(input_display_content), 0, 0);
       local_offset = 9;
+      put_utf8(&g_snake_tty_ctx, utf8_symbol, local_offset - 2, 0);
+    } else {
+      local_offset = 2;
     }
-    put_utf8(&g_snake_tty_ctx, utf8_symbol, local_offset - 2, 0);
-    render_game_braille(g, local_offset, 0);
-    snprintf(output_score_content, sizeof(output_score_content), "[score:%3d]",
-             player->score);
-    put_str(&g_snake_tty_ctx, output_score_content,
-            strlen(output_score_content), game_width / 2 + local_offset, 0);
+    int game_offset = g->simple_mode ? 0 : local_offset;
+    render_game_braille(g, game_offset, 0);
+    if (!g->simple_mode) {
+      snprintf(output_score_content, sizeof(output_score_content),
+               "[score:%3d]", player->score);
+      put_str(&g_snake_tty_ctx, output_score_content,
+              strlen(output_score_content), game_width / 2 + local_offset, 0);
+    }
   }
   draw_diff(&g_snake_tty_ctx);
 }
@@ -265,8 +270,12 @@ void game_render_tty_dead(const Game *g) {
               total_height / 2 - 1);
     }
   } else {
+    int offset = total_width;
+    if (g->simple_mode) {
+      offset = 0;
+    }
     put_str(&g_snake_tty_ctx, txt_game_over_one_line,
-            strlen(txt_game_over_one_line), total_width, 0);
+            strlen(txt_game_over_one_line), offset, 0);
   }
   draw_diff(&g_snake_tty_ctx);
 }
@@ -293,8 +302,12 @@ void game_render_tty_win(const Game *g) {
               total_height / 2 - 1);
     }
   } else {
+    int offset = total_width;
+    if (g->simple_mode) {
+      offset = 0;
+    }
     put_str(&g_snake_tty_ctx, txt_win_one_line, strlen(txt_win_one_line),
-            total_width, 0);
+            offset, 0);
   }
   draw_diff(&g_snake_tty_ctx);
 }

@@ -202,6 +202,11 @@ void put_str(struct snake_ctx *ctx, char *str, size_t size, int x, int y) {
 }
 
 void put_utf8(struct snake_ctx *ctx, uint32_t hex, int x, int y) {
+  if (x < 0 || y < 0 || x >= (int)ctx->nb_cols || y >= (int)ctx->nb_rows) {
+    fprintf(stderr, "put_utf8 OOB: x=%d y=%d cols=%zu rows=%zu hex=%u\n", x, y,
+            ctx->nb_cols, ctx->nb_rows, hex);
+    abort();
+  }
   size_t pos = (ctx->nb_cols * (size_t)y) + (size_t)x;
   ctx->back_buffer[pos].symbol = hex;
 }

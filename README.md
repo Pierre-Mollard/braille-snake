@@ -16,6 +16,15 @@ Build project (same as 'make' when using Makefiles):
 cmake --build build
 '''
 
+Build debug (with adress sanitizer)
+'''bash
+cmake -S . -B build-debug \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_C_FLAGS="-fsanitize=address -fno-omit-frame-pointer -g" \
+  -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address"
+cmake --build build-debug
+'''
+
 ## Tmux Install
 
 To install with tmux, add the compiled exec to a specific location.
