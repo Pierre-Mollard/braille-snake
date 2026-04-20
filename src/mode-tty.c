@@ -40,7 +40,7 @@ static int enable_raw_mode(void) {
 void tty_init(Game *g) {
 
   struct snake_ctx ctx = {0};
-  create_buffers(&ctx, g->game_height, g->game_width);
+  create_buffers(&ctx, g->total_height, g->total_width);
   g_snake_tty_ctx = ctx;
 
   if (enable_raw_mode() == -1) {
@@ -187,7 +187,7 @@ void game_render_tty_running(const Game *g, long long time_frame,
       put_utf8(&g_snake_tty_ctx, utf8_symbol, 7, 1);
     }
 
-    draw_edges(g, 0, 2, total_width - g->padding_width + 2,
+    draw_edges(g, 0, 2, total_width - g->padding_width + 1,
                total_height - g->padding_height + 1);
     render_game_braille(g, 1, 3);
 
