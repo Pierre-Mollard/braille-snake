@@ -1,4 +1,3 @@
-#include <errno.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -15,8 +14,6 @@
 #include "game.h"
 #include "mode-tmux.h"
 #include "mode-tty.h"
-
-uint32_t utf8_symbol = ' ';
 
 static volatile sig_atomic_t g_running = 1;
 
@@ -37,7 +34,9 @@ static int install_signal_handlers(void) {
   return 0;
 }
 
-static long long now_ms(void) {
+int app_is_running(void) { return g_running; }
+
+long long now_ms(void) {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
   return (long long)ts.tv_sec * 1000LL + ts.tv_nsec / 1000000LL;
@@ -177,112 +176,14 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  struct pollfd poll_fd[1];
-  poll_fd[0].fd = STDIN_FILENO;
-  poll_fd[0].events = POLLIN;
-  poll_fd[0].revents = 0;
-
-  long long time_frame = 100;
-  long long first_tick = now_ms();
-  long long next_tick = first_tick + time_frame;
-
-  GameState game_state = GS_RUN;
-
   game_init(&game, user_total_width, user_total_height);
-  tty_init(&game);
-  game_render_tty_running(&game, time_frame, 0.0, utf8_symbol);
 
-  while (g_running) {
-    long long ms_left = next_tick - now_ms();
-    if (ms_left < 0)
-      ms_left = 0;
-
-    int ret_poll = poll(poll_fd, 1, (int)ms_left);
-    if (ret_poll == -1) {
-      if (errno == EINTR)
-        continue;
-      perror("poll");
-      break;
-    }
-
-    if (ret_poll > 0 && (poll_fd[0].revents & POLLIN)) {
-      char c;
-      Command command = CMD_NONE;
-
-      if (read(STDIN_FILENO, &c, 1) > 0) {
-        if (c == '\x1b') {
-          char seq[2];
-          if (read(STDIN_FILENO, &seq[0], 1) > 0 &&
-              read(STDIN_FILENO, &seq[1], 1) > 0 && seq[0] == '[') {
-            switch (seq[1]) {
-            case 'A':
-              utf8_symbol = 0x2191;
-              command = CMD_UP;
-              break;
-            case 'B':
-              utf8_symbol = 0x2193;
-              command = CMD_DOWN;
-              break;
-            case 'C':
-              utf8_symbol = 0x2192;
-              command = CMD_RIGHT;
-              break;
-            case 'D':
-              utf8_symbol = 0x2190;
-              command = CMD_LEFT;
-              break;
-            }
-          } else {
-            command = CMD_QUIT;
-          }
-        } else {
-          utf8_symbol = (uint32_t)c;
-          command = tty_input(c);
-        }
-      }
-
-      if (game_state == GS_RUN) {
-        if (command != CMD_NONE)
-          game_handle_command(&game, command);
-      } else {
-        if (command == CMD_RESTART) {
-          game_reset(&game);
-          first_tick = now_ms();
-          next_tick = first_tick + time_frame;
-          game_state = GS_RUN;
-          game_render_tty_running(&game, time_frame, 0.0, utf8_symbol);
-        } else if (command == CMD_QUIT) {
-          break;
-        }
-      }
-
-      if (game_state == GS_RUN && (command == CMD_QUIT)) {
-        break;
-      }
-    }
-
-    if (game_state == GS_RUN && now_ms() >= next_tick) {
-      game_state = game_tick(&game);
-
-      if (game_state == GS_RUN) {
-        time_frame = 100 - (game.player.score / 5) * 5;
-        if (time_frame < 40)
-          time_frame = 40;
-
-        spawn_goal(&game);
-        double time_now = (now_ms() - first_tick) / 1000.0;
-        game_render_tty_running(&game, time_frame, time_now, utf8_symbol);
-      } else if (game_state == GS_LOSE) {
-        game_render_tty_dead(&game);
-      } else if (game_state == GS_WIN) {
-        game_render_tty_win(&game);
-      }
-
-      next_tick += time_frame;
-    }
+  if (user_tmux_mode) {
+    // TODO: run tmux server
+  } else {
+    run_tty_mode(&game);
   }
 
   game_destroy(&game);
-  tty_destroy(&game);
   return EXIT_SUCCESS;
 }

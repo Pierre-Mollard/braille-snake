@@ -64,3 +64,7 @@ void put_str(struct snake_ctx *ctx, char *str, size_t size, int x, int y);
 void put_utf8(struct snake_ctx *ctx, uint32_t hex, int x, int y);
 
 void clear_everything(struct snake_ctx *ctx);
+
+long long now_ms(void);
+
+int app_is_running(void);
