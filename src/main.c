@@ -162,11 +162,6 @@ int main(int argc, char *argv[]) {
       // print inside function used, printf("tmux_handle_command failed\n");
       return EXIT_FAILURE;
     }
-    if (rc != EXIT_SUCCESS || cmd_type == TMCD_SERVER) {
-      // print inside function used, printf("tmux_handle_command init server
-      // failed\n");
-      return EXIT_FAILURE;
-    }
     if (rc == EXIT_SUCCESS && cmd_type == TMCD_CLIENT)
       return EXIT_SUCCESS;
   }
@@ -179,7 +174,7 @@ int main(int argc, char *argv[]) {
   game_init(&game, user_total_width, user_total_height);
 
   if (user_tmux_mode) {
-    // TODO: run tmux server
+    run_tmux_mode(&game);
   } else {
     run_tty_mode(&game);
   }

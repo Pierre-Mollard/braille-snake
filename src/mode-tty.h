@@ -2,4 +2,4 @@
 
 #include "game.h"
 
-void run_tty_mode(Game *g);
+int run_tty_mode(Game *g);

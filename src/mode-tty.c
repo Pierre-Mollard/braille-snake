@@ -314,7 +314,7 @@ void game_render_tty_win(const Game *g) {
   draw_diff(&g_snake_tty_ctx);
 }
 
-void run_tty_mode(Game *game) {
+int run_tty_mode(Game *game) {
 
   uint32_t utf8_symbol = ' ';
 
@@ -423,4 +423,5 @@ void run_tty_mode(Game *game) {
   }
 
   tty_destroy(game);
+  return EXIT_SUCCESS;
 }

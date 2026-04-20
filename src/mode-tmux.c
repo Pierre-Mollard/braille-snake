@@ -1,11 +1,14 @@
 #include "mode-tmux.h"
 #include "braille-snake.h"
+#include "game.h"
+#include <errno.h>
 #include <fcntl.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/file.h>
+#include <sys/poll.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
@@ -13,39 +16,37 @@
 
 static void print_scene(void) { printf("XXXXXX"); }
 
-static int run_server(void) {
-  int lock_fd = -1;
-  int server_fd = -1;
+static int server_init(tmux_server *srv) {
   struct sockaddr_un addr;
 
-  lock_fd = open(TMUX_LOCK_FILE, O_RDWR | O_CREAT, 0600);
-  if (lock_fd == -1) {
+  srv->fd_lock = open(TMUX_LOCK_FILE, O_RDWR | O_CREAT, 0600);
+  if (srv->fd_lock == -1) {
     perror("open lock file");
     return EXIT_FAILURE;
   }
 
-  if (flock(lock_fd, LOCK_EX | LOCK_NB) == -1) {
+  if (flock(srv->fd_lock, LOCK_EX | LOCK_NB) == -1) {
     char pidbuf[32] = {0};
-    lseek(lock_fd, 0, SEEK_SET);
-    ssize_t n = read(lock_fd, pidbuf, sizeof(pidbuf) - 1);
+    lseek(srv->fd_lock, 0, SEEK_SET);
+    ssize_t n = read(srv->fd_lock, pidbuf, sizeof(pidbuf) - 1);
     if (n > 0) {
       fprintf(stderr, "braille-snake: server already running (pid %s)\n",
               pidbuf);
     } else {
       fprintf(stderr, "braille-snake: server already running\n");
     }
-    close(lock_fd);
+    close(srv->fd_lock);
     return EXIT_FAILURE;
   }
 
-  ftruncate(lock_fd, 0);
-  dprintf(lock_fd, "%ld", (long)getpid());
-  fsync(lock_fd);
+  ftruncate(srv->fd_lock, 0);
+  dprintf(srv->fd_lock, "%ld", (long)getpid());
+  fsync(srv->fd_lock);
 
-  server_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-  if (server_fd == -1) {
+  srv->fd_sock = socket(AF_UNIX, SOCK_STREAM, 0);
+  if (srv->fd_sock == -1) {
     perror("socket");
-    close(lock_fd);
+    close(srv->fd_lock);
     return EXIT_FAILURE;
   }
 
@@ -55,52 +56,28 @@ static int run_server(void) {
 
   unlink(TMUX_SOCK_FILE);
 
-  if (bind(server_fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+  if (bind(srv->fd_sock, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
     perror("bind");
-    close(server_fd);
-    close(lock_fd);
+    close(srv->fd_sock);
+    close(srv->fd_lock);
     return EXIT_FAILURE;
   }
 
-  if (listen(server_fd, 8) == -1) {
+  if (listen(srv->fd_sock, 8) == -1) {
     perror("listen");
     unlink(TMUX_SOCK_FILE);
-    close(server_fd);
-    close(lock_fd);
+    close(srv->fd_sock);
+    close(srv->fd_lock);
     return EXIT_FAILURE;
   }
 
-  printf("running server mode\n");
-  while (true) {
-    int client_fd = accept(server_fd, NULL, NULL);
-    if (client_fd == -1) {
-      perror("accept");
-      break;
-    }
+  return EXIT_SUCCESS;
+}
 
-    /* read client command, update state, maybe write response */
-
-    char buffer[512];
-
-    // read while 0 char read
-    printf("reading...\n");
-    size_t n = read(client_fd, buffer, sizeof(buffer));
-    if (n < 0) {
-      close(client_fd);
-      continue;
-    }
-
-    // TODO: move main to gameloop and multi thread
-
-    buffer[n] = '\0';
-    printf("read: %s\n", buffer);
-
-    close(client_fd);
-  }
-
+static int server_shutdown(tmux_server *srv) {
   unlink(TMUX_SOCK_FILE);
-  close(server_fd);
-  close(lock_fd);
+  close(srv->fd_sock);
+  close(srv->fd_lock);
   return EXIT_SUCCESS;
 }
 
@@ -135,21 +112,40 @@ static int send_data_unix(const char *content) {
   return EXIT_SUCCESS;
 }
 
+void server_handle_ready_client(tmux_server *srv, Game *game) {
+
+  int client_fd = accept(srv->fd_sock, NULL, NULL);
+  if (client_fd == -1) {
+    perror("accept");
+    return;
+  }
+
+  /* read client command, update state, maybe write response */
+  char buffer[512];
+
+  // read while 0 char read
+  printf("reading...\n");
+  size_t n = read(client_fd, buffer, sizeof(buffer));
+  if (n < 0) {
+    close(client_fd);
+    return;
+  }
+
+  buffer[n] = '\0';
+  printf("read: %s\n", buffer);
+
+  close(client_fd);
+}
+
 int tmux_handle_command(const char *input, tmux_command_type *cmd_type) {
   if (strcmp(input, "init") == 0) {
-    int is_running = run_server();
-    if (is_running == EXIT_SUCCESS) {
-      *cmd_type = TMCD_SERVER;
-      return EXIT_SUCCESS;
-    } else {
-      *cmd_type = TMCD_ERROR;
-      return EXIT_FAILURE;
-    }
+    *cmd_type = TMCD_SERVER;
+    return EXIT_SUCCESS;
   } else if (strcmp(input, "render") == 0) {
     *cmd_type = TMCD_CLIENT;
     print_scene();
-    return EXIT_SUCCESS;
     // TODO: use server data to print, return send_data_unix(input);
+    return EXIT_SUCCESS;
   } else if (strcmp(input, "up") == 0) {
     *cmd_type = TMCD_CLIENT;
     return send_data_unix(input);
@@ -166,4 +162,42 @@ int tmux_handle_command(const char *input, tmux_command_type *cmd_type) {
 
   *cmd_type = TMCD_UNDEF;
   return EXIT_FAILURE;
+}
+
+int run_tmux_mode(Game *g) {
+  tmux_server srv;
+  if (server_init(&srv) != 0)
+    return EXIT_FAILURE;
+
+  long long time_frame = 100;
+  long long next_tick = now_ms() + time_frame;
+  GameState state = GS_RUN;
+
+  printf("running server mode\n");
+  while (app_is_running()) {
+    long long ms_left = next_tick - now_ms();
+    if (ms_left < 0)
+      ms_left = 0;
+
+    struct pollfd pfd = {.fd = srv.fd_sock, .events = POLLIN, .revents = 0};
+
+    int ret = poll(&pfd, 1, (int)ms_left);
+    if (ret == -1) {
+      if (errno == EINTR)
+        continue;
+      break;
+    }
+
+    if (ret > 0 && (pfd.revents & POLLIN)) {
+      server_handle_ready_client(&srv, g);
+    }
+
+    if (state == GS_RUN && now_ms() >= next_tick) {
+      state = game_tick(g);
+      next_tick += time_frame;
+    }
+  }
+
+  server_shutdown(&srv);
+  return EXIT_SUCCESS;
 }
