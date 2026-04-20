@@ -153,7 +153,7 @@ int main(int argc, char *argv[]) {
     }
 
     tmux_command_type cmd_type = TMCD_ERROR;
-    int rc = tmux_handle_command(tmux_command_buf, &cmd_type);
+    int rc = tmux_user_out_cmd(tmux_command_buf, &cmd_type);
     if (rc != EXIT_SUCCESS && cmd_type == TMCD_UNDEF) {
       printf("tmux_handle_command not found\n");
       return EXIT_FAILURE;
