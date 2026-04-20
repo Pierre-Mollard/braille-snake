@@ -206,43 +206,69 @@ static int receive_data_unix(const char *content, size_t max_size,
   return EXIT_SUCCESS;
 }
 
-void server_handle_ready_client(tmux_server *srv, Game *game) {
+Command server_handle_ready_client(tmux_server *srv, Game *game,
+                                   GameState state) {
 
   int client_fd = accept(srv->fd_sock, NULL, NULL);
   if (client_fd == -1) {
     perror("accept");
-    return;
+    return CMD_NONE;
   }
 
   char buffer[512];
   size_t n = read(client_fd, buffer, sizeof(buffer));
   if (n < 0) {
     close(client_fd);
-    return;
+    return CMD_NONE;
   }
 
   buffer[n] = '\0';
   printf("read: %s\n", buffer);
 
   if (strcmp(buffer, "render") == 0) {
-    render_game_braille_tmux(game, srv);
-    render_utf8_tmux(srv);
-    if (write(client_fd, srv->output_buf, srv->render_size * UTF8_RES) == -1) {
-      perror("write");
-      close(client_fd);
-      return;
+
+    switch (state) {
+    case GS_RUN:
+      render_game_braille_tmux(game, srv);
+      render_utf8_tmux(srv);
+      if (write(client_fd, srv->output_buf, srv->render_size * UTF8_RES) ==
+          -1) {
+        perror("write");
+        close(client_fd);
+        return CMD_NONE;
+      }
+      break;
+    case GS_LOSE:
+      if (write(client_fd, "GAMEOVER", 8) == -1) {
+        perror("write");
+        close(client_fd);
+        return CMD_NONE;
+      }
+      break;
+    case GS_WIN:
+      if (write(client_fd, "WIN", 3) == -1) {
+        perror("write");
+        close(client_fd);
+        return CMD_NONE;
+      }
+      break;
     }
   } else if (strcmp(buffer, "up") == 0) {
-    game_handle_command(game, CMD_UP);
+    return CMD_UP;
   } else if (strcmp(buffer, "down") == 0) {
-    game_handle_command(game, CMD_DOWN);
+    return CMD_DOWN;
   } else if (strcmp(buffer, "right") == 0) {
-    game_handle_command(game, CMD_RIGHT);
+    return CMD_RIGHT;
   } else if (strcmp(buffer, "left") == 0) {
-    game_handle_command(game, CMD_LEFT);
+    return CMD_LEFT;
+  } else if (strcmp(buffer, "restart") == 0) {
+    return CMD_RESTART;
+  } else if (strcmp(buffer, "quit") == 0) {
+    return CMD_QUIT;
   }
 
   close(client_fd);
+  return CMD_NONE;
 }
 
 // NOTE: client set a max buffer size because it doesnt know the actual size
@@ -271,6 +297,12 @@ int tmux_user_out_cmd(const char *input, tmux_command_type *cmd_type) {
   } else if (strcmp(input, "left") == 0) {
     *cmd_type = TMCD_CLIENT;
     return send_data_unix(input);
+  } else if (strcmp(input, "restart") == 0) {
+    *cmd_type = TMCD_CLIENT;
+    return send_data_unix(input);
+  } else if (strcmp(input, "quit") == 0) {
+    *cmd_type = TMCD_CLIENT;
+    return send_data_unix(input);
   }
 
   *cmd_type = TMCD_UNDEF;
@@ -283,8 +315,10 @@ int run_tmux_mode(Game *g) {
     return EXIT_FAILURE;
 
   long long time_frame = 100;
-  long long next_tick = now_ms() + time_frame;
+  long long first_tick = now_ms();
+  long long next_tick = first_tick + time_frame;
   GameState state = GS_RUN;
+  Command command = CMD_NONE;
 
   printf("running server mode\n");
   while (app_is_running()) {
@@ -302,11 +336,46 @@ int run_tmux_mode(Game *g) {
     }
 
     if (ret > 0 && (pfd.revents & POLLIN)) {
-      server_handle_ready_client(&srv, g);
+      command = server_handle_ready_client(&srv, g, state);
+
+      if (state == GS_RUN) {
+        if (command != CMD_NONE)
+          game_handle_command(g, command);
+      } else {
+        if (command == CMD_RESTART) {
+          printf("reset after end\n");
+          game_reset(g);
+          first_tick = now_ms();
+          next_tick = first_tick + time_frame;
+          state = GS_RUN;
+        } else if (command == CMD_QUIT) {
+          printf("quit after end\n");
+          break;
+        }
+      }
+
+      if (state == GS_RUN && (command == CMD_QUIT)) {
+        printf("quit during game\n");
+        break;
+      }
+      if (state == GS_RUN && (command == CMD_RESTART)) {
+        printf("restart during game\n");
+        game_reset(g);
+        first_tick = now_ms();
+        next_tick = first_tick + time_frame;
+        state = GS_RUN;
+      }
     }
 
     if (state == GS_RUN && now_ms() >= next_tick) {
       state = game_tick(g);
+
+      time_frame = 100 - (g->player.score / 5) * 5;
+      if (time_frame < 40)
+        time_frame = 40;
+
+      spawn_goal(g);
+
       next_tick += time_frame;
     }
   }

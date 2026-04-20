@@ -46,6 +46,6 @@ Use the path in the tmux command to link to the game.
 [x] Add options to change game settings
 [x] Dont show texts if too small size (one line too)
 [x] Add speed variation with score and multiplier
-[ ] Mode for tmux integration
+[x] Mode for tmux integration
 
 Copyright (c) 2026 Pierre Mollard. All Rights Reserved.
