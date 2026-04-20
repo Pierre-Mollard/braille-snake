@@ -27,8 +27,13 @@ cmake --build build-debug
 
 ## Tmux Install
 
-To install with tmux, add the compiled exec to a specific location.
-Use the path in the tmux command to link to the game.
+To install with tmux you need the binary in /bin, use cmake for that:
+
+'''bash
+cmake --install build --prefix ~/.local
+'''
+
+Then configure tmux like in the example (tmux-setup/).
 
 ## TODO List
 [x] Create Grid visible in braille

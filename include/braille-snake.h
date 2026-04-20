@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#define VERSION "1.0"
+
 #define TMUX_LOCK_FILE "/tmp/braille-snake-tmux.lock"
 #define TMUX_SOCK_FILE "/tmp/braille-snake-tmux.sock"
 

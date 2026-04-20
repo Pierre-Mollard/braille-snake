@@ -11,6 +11,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "braille-snake.h"
 #include "game.h"
 #include "mode-tmux.h"
 #include "mode-tty.h"
@@ -47,6 +48,7 @@ void usage(const char *prog_name) {
   printf("\n");
   printf("Braille Snake terminal game.\n");
   printf("One food = 1 growth + score points \n");
+  printf("Version: [%s]\n", VERSION);
   printf("\n");
   printf("Options:\n");
   printf("  -h            Show this help and exit\n");

@@ -30,6 +30,12 @@ target_sources(BrailleSnake
 add_executable(BrailleSnakeMain)
 target_sources(BrailleSnakeMain PRIVATE src/main.c)
 target_link_libraries(BrailleSnakeMain PRIVATE BrailleSnake)
+set_target_properties(BrailleSnakeMain PROPERTIES
+    OUTPUT_NAME braille-snake
+)
+
+install(TARGETS BrailleSnakeMain
+        RUNTIME DESTINATION bin)
 
 add_executable(TestCharList)
 target_sources(TestCharList PRIVATE tests/char_list.c)
