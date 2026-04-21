@@ -6,6 +6,13 @@
 #define BRAILLE_RATIO_H 4
 #define BRAILLE_RATIO_W 2
 
+typedef enum {
+  FS_MODE_NONE,
+  FS_MODE_RENDER,
+  FS_MODE_MOVE,
+  FS_MODE_MOVE_RENDER,
+} FastModeConf;
+
 struct player_cell {
   unsigned int pos_x;
   unsigned int pos_y;
@@ -45,7 +52,7 @@ typedef struct {
   bool god_mode;
   bool one_line_mode;
   bool simple_mode;
-  bool slow_update; // only for tmux
+  FastModeConf slow_update; // only for tmux
   unsigned int max_concurrent_bonus;
   Player player;
 } Game;

@@ -335,7 +335,11 @@ int run_tmux_mode(Game *g) {
   GameState state = GS_RUN;
   Command command = CMD_NONE;
 
-  bool is_slow_mode = g->slow_update;
+  bool is_slow_mode = g->slow_update != FS_MODE_NONE;
+  bool is_slow_mode_render = (g->slow_update == FS_MODE_RENDER) ||
+                             (g->slow_update == FS_MODE_MOVE_RENDER);
+  bool is_slow_mode_move = (g->slow_update == FS_MODE_MOVE) ||
+                           (g->slow_update == FS_MODE_MOVE_RENDER);
 
   printf("running server mode\n");
   while (app_is_running()) {
@@ -393,8 +397,9 @@ int run_tmux_mode(Game *g) {
 
     bool should_tick;
     if (is_slow_mode) {
-      should_tick =
-          (state == GS_RUN) && (is_movement_cmd(command) || served_rendering);
+      should_tick = (state == GS_RUN) &&
+                    ((is_movement_cmd(command) && is_slow_mode_move) ||
+                     (served_rendering && is_slow_mode_render));
     } else {
       should_tick = (state == GS_RUN) && (now_ms() >= next_tick);
     }

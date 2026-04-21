@@ -61,8 +61,12 @@ void usage(const char *prog_name) {
   printf("  -o            One-line mode (forces line count to 1)\n");
   printf("  -m <value>    Multiplier for score and growth (min:1)\n");
   printf("  -t <cmd>      Enable tmux integration (run as server)\n");
+  printf("  -k 1          Refresh tmux game after render only (if slow "
+         "refresh)\n");
   printf(
-      "  -k            Refresh tmux game after cmd only (if slow refresh)\n");
+      "  -k 2          Refresh tmux game after move only (if slow refresh)\n");
+  printf("  -k 3          Refresh tmux game after render or move only (if slow "
+         "refresh)\n");
   printf("\n");
   printf("Examples:\n");
   printf("  %s -c 40 -l 20\n", prog_name);
@@ -92,7 +96,7 @@ int main(int argc, char *argv[]) {
   bool user_simple_mode = false;
   bool user_god_mode = false;
   bool user_one_line_mode = false;
-  bool user_slow_update_mode = false;
+  FastModeConf user_slow_update_mode = FS_MODE_NONE;
   unsigned int user_total_height = 30;
   unsigned int user_total_width = 80;
   unsigned int user_max_bonus = 3;
@@ -100,9 +104,10 @@ int main(int argc, char *argv[]) {
   unsigned int user_padding_height = 5;
   unsigned int user_padding_width = 2;
   char tmux_command_buf[64] = {0};
+  int slow_mode_buf = 0;
 
   int opt;
-  while ((opt = getopt(argc, argv, "hl:c:gsof:m:t:k")) != -1) {
+  while ((opt = getopt(argc, argv, "hl:c:gsof:m:t:k:")) != -1) {
     switch (opt) {
     case 'm':
       user_multiplier = atoi(optarg);
@@ -136,7 +141,22 @@ int main(int argc, char *argv[]) {
       user_one_line_mode = true;
       break;
     case 'k':
-      user_slow_update_mode = true;
+      slow_mode_buf = atoi(optarg);
+      if (slow_mode_buf < 0)
+        slow_mode_buf = 0;
+      if (slow_mode_buf > 3)
+        slow_mode_buf = 3;
+      switch (slow_mode_buf) {
+      case 1:
+        user_slow_update_mode = FS_MODE_RENDER;
+        break;
+      case 2:
+        user_slow_update_mode = FS_MODE_MOVE;
+        break;
+      case 3:
+        user_slow_update_mode = FS_MODE_MOVE_RENDER;
+        break;
+      }
       break;
     case 't':
       user_tmux_mode = true;
