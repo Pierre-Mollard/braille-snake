@@ -52,6 +52,7 @@ typedef struct {
   bool god_mode;
   bool one_line_mode;
   bool simple_mode;
+  bool tmux_advanced;       // only for tmux
   FastModeConf slow_update; // only for tmux
   unsigned int max_concurrent_bonus;
   Player player;

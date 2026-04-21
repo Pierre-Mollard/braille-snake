@@ -61,6 +61,8 @@ void usage(const char *prog_name) {
   printf("  -o            One-line mode (forces line count to 1)\n");
   printf("  -m <value>    Multiplier for score and growth (min:1)\n");
   printf("  -t <cmd>      Enable tmux integration (run as server)\n");
+  printf("  -a            Enable tmux advanced integration (conf tmux system "
+         "cmd)\n");
   printf("  -k 1          Refresh tmux game after render only (if slow "
          "refresh)\n");
   printf(
@@ -96,6 +98,7 @@ int main(int argc, char *argv[]) {
   bool user_simple_mode = false;
   bool user_god_mode = false;
   bool user_one_line_mode = false;
+  bool user_tmux_advanced = false;
   FastModeConf user_slow_update_mode = FS_MODE_NONE;
   unsigned int user_total_height = 30;
   unsigned int user_total_width = 80;
@@ -107,7 +110,7 @@ int main(int argc, char *argv[]) {
   int slow_mode_buf = 0;
 
   int opt;
-  while ((opt = getopt(argc, argv, "hl:c:gsof:m:t:k:")) != -1) {
+  while ((opt = getopt(argc, argv, "hl:c:gsof:m:t:k:a")) != -1) {
     switch (opt) {
     case 'm':
       user_multiplier = atoi(optarg);
@@ -169,6 +172,9 @@ int main(int argc, char *argv[]) {
       user_total_width = 6;
       user_max_bonus = 1;
       break;
+    case 'a':
+      user_tmux_advanced = true;
+      break;
     case 'h':
       usage(argv[0]);
       return 1;
@@ -185,6 +191,7 @@ int main(int argc, char *argv[]) {
   game.max_concurrent_bonus = user_max_bonus;
   game.player.multiplier = user_multiplier;
   game.slow_update = user_slow_update_mode; // only for tmux mode
+  game.tmux_advanced = user_tmux_advanced;  // only for tmux mode
 
   if (user_tmux_mode) {
     if (tmux_command_buf[0] == '\0') {

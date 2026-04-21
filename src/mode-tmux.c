@@ -413,6 +413,26 @@ int run_tmux_mode(Game *g) {
 
       spawn_goal(g);
 
+      if (g->tmux_advanced) {
+        char cmd[1024];
+
+        if (state == GS_RUN) {
+          render_game_braille_tmux(g, &srv);
+          render_utf8_tmux(&srv);
+          snprintf(cmd, sizeof(cmd), "tmux set-option -g @snake_render '%s'",
+                   srv.output_buf);
+        } else if (state == GS_LOSE) {
+
+          snprintf(cmd, sizeof(cmd),
+                   "tmux set-option -g @snake_render '! GAMEOVER !'");
+        } else if (state == GS_WIN) {
+          snprintf(cmd, sizeof(cmd),
+                   "tmux set-option -g @snake_render '  ! WIN !   '");
+        }
+        printf(">> %s\n", cmd);
+        system(cmd);
+      }
+
       next_tick += time_frame;
     }
   }
