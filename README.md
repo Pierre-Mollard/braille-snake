@@ -3,35 +3,58 @@
 
 This project is inspired by [URL Snake](https://urlsnake.com/).
 
+## Demos
+
+### Standalone
+
+#### Gameplay
+![gameplay](demos/gifs/demo.gif)
+
+#### Options
+![options](demos/gifs/options.gif)
+
+#### One Line Mode
+![one-line](demos/gifs/one-line.gif)
+
+### Tmux Integration
+
+#### Within tmux
+![tmux](demos/gifs/tmux.gif)
+
+### Features
+
+#### Help
+![help](demos/captures/help.png)
+
 ## Help
 
 The build system for this project is CMake.
 Setup build folders:
-'''bash
+```bash
 cmake -B build
-'''
 
 Build project (same as 'make' when using Makefiles):
-'''bash
+```
+```bash
 cmake --build build
-'''
+```
 
 Build debug (with adress sanitizer)
-'''bash
+```bash
 cmake -S . -B build-debug \
   -DCMAKE_BUILD_TYPE=Debug \
   -DCMAKE_C_FLAGS="-fsanitize=address -fno-omit-frame-pointer -g" \
   -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address"
 cmake --build build-debug
-'''
+```
 
 ## Tmux Install
 
 To install with tmux you need the binary in /bin, use cmake for that:
 
-'''bash
+```bash
 cmake --install build --prefix ~/.local
-'''
+```
 
 Then configure tmux like in the example (tmux-setup/).
 
@@ -56,21 +79,21 @@ Doesn't refresh otherwise.
 No environment constraints but require gameplay to be easier (no auto move / inertia).
 
 ## TODO List
-[x] Create Grid visible in braille
-[x] Add score display
-[x] Add player control
-[x] Add player cell management
-[x] Add goal spawn
-[x] Add collision detection (good and bad)
-[x] Add win condition and defeat
-[x] Add nice border and adapt for one line mode
-[x] Add confirm input to quit/restart
-[x] Adapt layout to game size (define a layout size)
-[x] Add time display
-[x] Add double buffer (mostly for muti-line games)
-[x] Add options to change game settings
-[x] Dont show texts if too small size (one line too)
-[x] Add speed variation with score and multiplier
-[x] Mode for tmux integration
+- [x] Create Grid visible in braille
+- [x] Add score display
+- [x] Add player control
+- [x] Add player cell management
+- [x] Add goal spawn
+- [x] Add collision detection (good and bad)
+- [x] Add win condition and defeat
+- [x] Add nice border and adapt for one line mode
+- [x] Add confirm input to quit/restart
+- [x] Adapt layout to game size (define a layout size)
+- [x] Add time display
+- [x] Add double buffer (mostly for muti-line games)
+- [x] Add options to change game settings
+- [x] Dont show texts if too small size (one line too)
+- [x] Add speed variation with score and multiplier
+- [x] Mode for tmux integration
 
 Copyright (c) 2026 Pierre Mollard. All Rights Reserved.
