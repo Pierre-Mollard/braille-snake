@@ -60,7 +60,9 @@ void usage(const char *prog_name) {
   printf("  -s            Draw dashed border with fewer elements\n");
   printf("  -o            One-line mode (forces line count to 1)\n");
   printf("  -m <value>    Multiplier for score and growth (min:1)\n");
-  printf("  -t            Enable tmux integration (run as server)\n");
+  printf("  -t <cmd>      Enable tmux integration (run as server)\n");
+  printf(
+      "  -k            Refresh tmux game after cmd only (if slow refresh)\n");
   printf("\n");
   printf("Examples:\n");
   printf("  %s -c 40 -l 20\n", prog_name);
@@ -70,6 +72,17 @@ void usage(const char *prog_name) {
   printf("Controls:\n");
   printf("  h j k l / arrows      Move left/down/up/right\n");
   printf("  q/Q                   Quit\n");
+  printf("\n");
+  printf("Tmux commands:\n");
+  printf("  init                  Start server\n");
+  printf("  render                Output scene\n");
+  printf("  up                    Go up\n");
+  printf("  down                  Go down\n");
+  printf("  left                  Go left\n");
+  printf("  right                 Go right\n");
+  printf("  quit                  Quit game\n");
+  printf("  restart               Restart game\n");
+  printf("\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -79,6 +92,7 @@ int main(int argc, char *argv[]) {
   bool user_simple_mode = false;
   bool user_god_mode = false;
   bool user_one_line_mode = false;
+  bool user_slow_update_mode = false;
   unsigned int user_total_height = 30;
   unsigned int user_total_width = 80;
   unsigned int user_max_bonus = 3;
@@ -88,7 +102,7 @@ int main(int argc, char *argv[]) {
   char tmux_command_buf[64] = {0};
 
   int opt;
-  while ((opt = getopt(argc, argv, "hl:c:gsof:m:t:")) != -1) {
+  while ((opt = getopt(argc, argv, "hl:c:gsof:m:t:k")) != -1) {
     switch (opt) {
     case 'm':
       user_multiplier = atoi(optarg);
@@ -121,6 +135,9 @@ int main(int argc, char *argv[]) {
     case 'o':
       user_one_line_mode = true;
       break;
+    case 'k':
+      user_slow_update_mode = true;
+      break;
     case 't':
       user_tmux_mode = true;
       strncpy(tmux_command_buf, optarg, sizeof(tmux_command_buf) - 1);
@@ -147,6 +164,7 @@ int main(int argc, char *argv[]) {
   game.one_line_mode = user_one_line_mode;
   game.max_concurrent_bonus = user_max_bonus;
   game.player.multiplier = user_multiplier;
+  game.slow_update = user_slow_update_mode; // only for tmux mode
 
   if (user_tmux_mode) {
     if (tmux_command_buf[0] == '\0') {

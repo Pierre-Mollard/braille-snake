@@ -207,7 +207,9 @@ static int receive_data_unix(const char *content, size_t max_size,
 }
 
 Command server_handle_ready_client(tmux_server *srv, Game *game,
-                                   GameState state) {
+                                   GameState state, bool *rendered) {
+
+  *rendered = false;
 
   int client_fd = accept(srv->fd_sock, NULL, NULL);
   if (client_fd == -1) {
@@ -237,6 +239,7 @@ Command server_handle_ready_client(tmux_server *srv, Game *game,
         close(client_fd);
         return CMD_NONE;
       }
+      *rendered = true;
       break;
     case GS_LOSE:
       if (write(client_fd, "GAMEOVER", 8) == -1) {
@@ -309,6 +312,18 @@ int tmux_user_out_cmd(const char *input, tmux_command_type *cmd_type) {
   return EXIT_FAILURE;
 }
 
+bool is_movement_cmd(Command cmd) {
+  switch (cmd) {
+  case CMD_UP:
+  case CMD_DOWN:
+  case CMD_LEFT:
+  case CMD_RIGHT:
+    return true;
+  default:
+    return false;
+  }
+}
+
 int run_tmux_mode(Game *g) {
   tmux_server srv;
   if (server_init(&srv, g) != 0)
@@ -320,23 +335,32 @@ int run_tmux_mode(Game *g) {
   GameState state = GS_RUN;
   Command command = CMD_NONE;
 
+  bool is_slow_mode = g->slow_update;
+
   printf("running server mode\n");
   while (app_is_running()) {
-    long long ms_left = next_tick - now_ms();
-    if (ms_left < 0)
-      ms_left = 0;
+    command = CMD_NONE;
+    int poll_timeout;
+
+    if (is_slow_mode) {
+      poll_timeout = -1;
+    } else {
+      long long ms_left = next_tick - now_ms();
+      poll_timeout = (int)(ms_left < 0 ? 0 : ms_left);
+    }
 
     struct pollfd pfd = {.fd = srv.fd_sock, .events = POLLIN, .revents = 0};
 
-    int ret = poll(&pfd, 1, (int)ms_left);
+    int ret = poll(&pfd, 1, poll_timeout);
     if (ret == -1) {
       if (errno == EINTR)
         continue;
       break;
     }
 
+    bool served_rendering = false;
     if (ret > 0 && (pfd.revents & POLLIN)) {
-      command = server_handle_ready_client(&srv, g, state);
+      command = server_handle_ready_client(&srv, g, state, &served_rendering);
 
       if (state == GS_RUN) {
         if (command != CMD_NONE)
@@ -367,7 +391,15 @@ int run_tmux_mode(Game *g) {
       }
     }
 
-    if (state == GS_RUN && now_ms() >= next_tick) {
+    bool should_tick;
+    if (is_slow_mode) {
+      should_tick =
+          (state == GS_RUN) && (is_movement_cmd(command) || served_rendering);
+    } else {
+      should_tick = (state == GS_RUN) && (now_ms() >= next_tick);
+    }
+
+    if (should_tick) {
       state = game_tick(g);
 
       time_frame = 100 - (g->player.score / 5) * 5;
