@@ -35,6 +35,26 @@ cmake --install build --prefix ~/.local
 
 Then configure tmux like in the example (tmux-setup/).
 
+### regular
+Uses tmux built-in refresh rate to update the game.
+This is very slow (1sec refresh rate max).
+Huge lag between user input and rendering game.
+No environment constraints.
+
+### optimized
+Game server update a display variable every tick.
+No tmux built-in refresh.
+Very fast, low input lag, high refresh rate.
+Server send a lot of tmux config commands in the shell (background).
+Need server permission to use system call.
+
+### hybrid
+Every tmux input update the rendering display.
+No tmux built-in refresh.
+Very fast when user input something.
+Doesn't refresh otherwise.
+No environment constraints but require gameplay to be easier (no auto move / inertia).
+
 ## TODO List
 [x] Create Grid visible in braille
 [x] Add score display
